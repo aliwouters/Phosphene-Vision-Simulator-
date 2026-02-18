@@ -1,444 +1,498 @@
 "use client"
 
-import { useRef, useMemo, useEffect } from "react"
-import { Canvas, useFrame } from "@react-three/fiber"
-import { OrbitControls, Text, Environment } from "@react-three/drei"
-import * as THREE from "three"
+import { useRef, useEffect, useState, useCallback } from "react"
 
 interface OccipitalHeatmapProps {
   matrix: number[][]
   gridSize: number
 }
 
-// Heat color: dark blue -> cyan -> green -> yellow -> orange -> white
-function heatColor(t: number): THREE.Color {
+function heatColor(t: number): [number, number, number] {
   const v = Math.max(0, Math.min(1, t))
   if (v < 0.2) {
-    return new THREE.Color().lerpColors(
-      new THREE.Color(0x050830),
-      new THREE.Color(0x0a4060),
-      v / 0.2
-    )
+    const f = v / 0.2
+    return [lerp(8, 15, f), lerp(12, 60, f), lerp(60, 110, f)]
   }
   if (v < 0.4) {
-    return new THREE.Color().lerpColors(
-      new THREE.Color(0x0a4060),
-      new THREE.Color(0x0dbaa0),
-      (v - 0.2) / 0.2
-    )
+    const f = (v - 0.2) / 0.2
+    return [lerp(15, 20, f), lerp(60, 180, f), lerp(110, 170, f)]
   }
   if (v < 0.6) {
-    return new THREE.Color().lerpColors(
-      new THREE.Color(0x0dbaa0),
-      new THREE.Color(0xa0e830),
-      (v - 0.4) / 0.2
-    )
+    const f = (v - 0.4) / 0.2
+    return [lerp(20, 160, f), lerp(180, 230, f), lerp(170, 50, f)]
   }
   if (v < 0.8) {
-    return new THREE.Color().lerpColors(
-      new THREE.Color(0xa0e830),
-      new THREE.Color(0xffa020),
-      (v - 0.6) / 0.2
-    )
+    const f = (v - 0.6) / 0.2
+    return [lerp(160, 255, f), lerp(230, 180, f), lerp(50, 30, f)]
   }
-  return new THREE.Color().lerpColors(
-    new THREE.Color(0xffa020),
-    new THREE.Color(0xfff0e0),
-    (v - 0.8) / 0.2
-  )
+  const f = (v - 0.8) / 0.2
+  return [lerp(255, 255, f), lerp(180, 245, f), lerp(30, 220, f)]
 }
 
-// Generate brain hemisphere geometry (medial surface approximation)
-function createBrainGeometry(): THREE.BufferGeometry {
-  const shape = new THREE.Shape()
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
 
-  // Medial sagittal brain profile (viewed from the side)
-  // Coordinates in a ~4x3 bounding box centered roughly at origin
-  // Front is -x, back (occipital) is +x
+// Draw a smooth brain silhouette (medial sagittal view)
+function drawBrainOutline(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale: number,
+  rotY: number,
+  rotX: number
+) {
+  // Apply perspective foreshortening based on Y rotation
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
 
-  // Start at frontal pole
-  shape.moveTo(-2.0, -0.1)
+  // Slight vertical shift from X rotation
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  ctx.save()
+  ctx.translate(cx, cy + shiftY)
+
+  // Brain outline path (medial view) 
+  ctx.beginPath()
+  // Start at frontal base
+  ctx.moveTo(-1.9 * scaleX, 0.1 * scaleY)
 
   // Frontal lobe upper curve
-  shape.bezierCurveTo(-1.8, 1.2, -0.8, 1.7, 0.0, 1.6)
+  ctx.bezierCurveTo(
+    -1.85 * scaleX, -0.9 * scaleY,
+    -1.2 * scaleX, -1.55 * scaleY,
+    -0.3 * scaleX, -1.6 * scaleY
+  )
 
-  // Parietal lobe
-  shape.bezierCurveTo(0.7, 1.5, 1.3, 1.2, 1.7, 0.7)
+  // Top of parietal
+  ctx.bezierCurveTo(
+    0.3 * scaleX, -1.6 * scaleY,
+    0.9 * scaleX, -1.45 * scaleY,
+    1.3 * scaleX, -1.1 * scaleY
+  )
+
+  // Parietal-occipital transition
+  ctx.bezierCurveTo(
+    1.6 * scaleX, -0.8 * scaleY,
+    1.8 * scaleX, -0.45 * scaleY,
+    1.85 * scaleX, -0.05 * scaleY
+  )
 
   // Occipital pole
-  shape.bezierCurveTo(2.0, 0.3, 2.0, -0.3, 1.7, -0.6)
-
-  // Inferior occipital / cerebellum boundary
-  shape.bezierCurveTo(1.3, -1.0, 0.8, -1.1, 0.3, -1.0)
-
-  // Temporal lobe / brain stem
-  shape.bezierCurveTo(-0.3, -0.9, -1.0, -1.0, -1.5, -0.7)
-
-  // Back to frontal pole
-  shape.bezierCurveTo(-1.8, -0.5, -2.0, -0.3, -2.0, -0.1)
-
-  // Extrude to give it 3D depth
-  const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-    depth: 1.2,
-    bevelEnabled: true,
-    bevelThickness: 0.25,
-    bevelSize: 0.2,
-    bevelOffset: 0,
-    bevelSegments: 8,
-    curveSegments: 32,
-  }
-
-  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-  geometry.center()
-
-  return geometry
-}
-
-// Generate occipital lobe region geometry (the V1 area along calcarine)
-function createOccipitalGeometry(): THREE.BufferGeometry {
-  const shape = new THREE.Shape()
-
-  // Occipital region -- the posterior wedge of the brain
-  shape.moveTo(0.6, 0.0)
-
-  // Dorsal bank
-  shape.bezierCurveTo(0.8, 0.6, 1.3, 0.9, 1.7, 0.7)
-
-  // Posterior pole
-  shape.bezierCurveTo(2.0, 0.3, 2.0, -0.3, 1.7, -0.6)
-
-  // Ventral bank
-  shape.bezierCurveTo(1.3, -0.85, 0.8, -0.6, 0.6, 0.0)
-
-  const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-    depth: 1.3,
-    bevelEnabled: true,
-    bevelThickness: 0.15,
-    bevelSize: 0.1,
-    bevelOffset: 0,
-    bevelSegments: 6,
-    curveSegments: 32,
-  }
-
-  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings)
-  geometry.center()
-
-  return geometry
-}
-
-// Create the calcarine sulcus line
-function CalcarineSulcus() {
-  const points = useMemo(() => {
-    const curve = new THREE.CubicBezierCurve3(
-      new THREE.Vector3(-0.65, 0.0, 0.0),
-      new THREE.Vector3(-0.2, 0.02, 0.0),
-      new THREE.Vector3(0.2, -0.02, 0.0),
-      new THREE.Vector3(0.65, 0.0, 0.0)
-    )
-    return curve.getPoints(40)
-  }, [])
-
-  return (
-    <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.length}
-          array={new Float32Array(points.flatMap((p) => [p.x, p.y, p.z]))}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <lineDashedMaterial
-        color="#ffffff"
-        dashSize={0.05}
-        gapSize={0.03}
-        opacity={0.6}
-        transparent
-      />
-    </line>
+  ctx.bezierCurveTo(
+    1.88 * scaleX, 0.25 * scaleY,
+    1.8 * scaleX, 0.55 * scaleY,
+    1.55 * scaleX, 0.75 * scaleY
   )
-}
 
-// The heatmap surface textured with the matrix data
-function HeatmapTexture({
-  matrix,
-  gridSize,
-}: {
-  matrix: number[][]
-  gridSize: number
-}) {
-  const textureRef = useRef<THREE.DataTexture | null>(null)
-
-  const texture = useMemo(() => {
-    const size = 128
-    const data = new Uint8Array(size * size * 4)
-
-    // Fill with dark blue initially
-    for (let i = 0; i < size * size; i++) {
-      data[i * 4] = 5
-      data[i * 4 + 1] = 8
-      data[i * 4 + 2] = 48
-      data[i * 4 + 3] = 255
-    }
-
-    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat)
-    tex.needsUpdate = true
-    textureRef.current = tex
-    return tex
-  }, [])
-
-  // Update texture when matrix changes
-  useEffect(() => {
-    if (!textureRef.current || matrix.length === 0) return
-
-    const tex = textureRef.current
-    const size = 128
-    const data = tex.image.data as Uint8Array
-    const halfGrid = gridSize / 2
-
-    for (let py = 0; py < size; py++) {
-      for (let px = 0; px < size; px++) {
-        const idx = (py * size + px) * 4
-
-        // Map texture coordinates to the occipital V1 region
-        // The texture is applied to the occipital geometry
-        // U (px) = anterior-posterior axis (left = anterior/periphery, right = posterior/fovea)
-        // V (py) = dorsal-ventral axis (bottom = ventral/upper field, top = dorsal/lower field)
-
-        const u = px / size
-        const v = py / size
-
-        // Log-polar mapping: simulate cortical magnification
-        // Posterior pole (u=1) = fovea (center of visual field)
-        // Anterior (u=0) = periphery
-        const logScale = 0.4
-        const eccentricity = (Math.exp((1 - u) / logScale) - 1) / (Math.exp(1 / logScale) - 1)
-        const maxEcc = halfGrid * Math.sqrt(2)
-        const ecc = eccentricity * maxEcc
-
-        // Angle from calcarine: v=0.5 is the calcarine sulcus (horizontal meridian)
-        // v>0.5 = dorsal = lower visual field, v<0.5 = ventral = upper visual field
-        const angle = (v - 0.5) * Math.PI * 0.85
-
-        const visualX = ecc * Math.cos(angle)
-        const visualY = ecc * Math.sin(angle)
-
-        const gridCol = Math.floor(halfGrid + visualX)
-        const gridRow = Math.floor(halfGrid - visualY) // flip Y
-
-        if (
-          gridRow >= 0 &&
-          gridRow < gridSize &&
-          gridCol >= 0 &&
-          gridCol < gridSize &&
-          matrix[gridRow] &&
-          matrix[gridRow][gridCol] !== undefined
-        ) {
-          const value = matrix[gridRow][gridCol]
-          const normalized = (value - 2) / 75
-          const color = heatColor(normalized)
-          data[idx] = Math.round(color.r * 255)
-          data[idx + 1] = Math.round(color.g * 255)
-          data[idx + 2] = Math.round(color.b * 255)
-          data[idx + 3] = 255
-        } else {
-          data[idx] = 5
-          data[idx + 1] = 8
-          data[idx + 2] = 48
-          data[idx + 3] = 255
-        }
-      }
-    }
-
-    tex.needsUpdate = true
-  }, [matrix, gridSize])
-
-  return texture
-}
-
-// Main brain mesh component
-function BrainModel({
-  matrix,
-  gridSize,
-}: {
-  matrix: number[][]
-  gridSize: number
-}) {
-  const brainRef = useRef<THREE.Mesh>(null!)
-  const occipitalRef = useRef<THREE.Mesh>(null!)
-  const groupRef = useRef<THREE.Group>(null!)
-
-  const brainGeometry = useMemo(() => createBrainGeometry(), [])
-  const occipitalGeometry = useMemo(() => createOccipitalGeometry(), [])
-  const heatmapTexture = HeatmapTexture({ matrix, gridSize })
-
-  // Gentle idle rotation
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y =
-        Math.sin(state.clock.elapsedTime * 0.15) * 0.08 - 0.3
-    }
-  })
-
-  return (
-    <group ref={groupRef} rotation={[0, -0.3, 0]}>
-      {/* Brain hemisphere -- translucent */}
-      <mesh ref={brainRef} geometry={brainGeometry}>
-        <meshPhysicalMaterial
-          color="#1a1e30"
-          transparent
-          opacity={0.35}
-          roughness={0.7}
-          metalness={0.1}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-
-      {/* Brain wireframe overlay for sulci texture */}
-      <mesh geometry={brainGeometry}>
-        <meshBasicMaterial
-          color="#2a3050"
-          wireframe
-          transparent
-          opacity={0.08}
-        />
-      </mesh>
-
-      {/* Occipital lobe with heatmap */}
-      <mesh ref={occipitalRef} geometry={occipitalGeometry}>
-        <meshStandardMaterial
-          map={heatmapTexture}
-          emissiveMap={heatmapTexture}
-          emissive="#ffffff"
-          emissiveIntensity={0.5}
-          roughness={0.5}
-          metalness={0.05}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Occipital lobe border glow */}
-      <mesh geometry={occipitalGeometry} scale={[1.02, 1.02, 1.02]}>
-        <meshBasicMaterial
-          color="#00d2a0"
-          wireframe
-          transparent
-          opacity={0.15}
-        />
-      </mesh>
-
-      {/* Calcarine sulcus */}
-      <group position={[0.05, 0.0, 0.0]}>
-        <CalcarineSulcus />
-      </group>
-
-      {/* Labels */}
-      <Text
-        position={[-1.2, 1.0, 0.7]}
-        fontSize={0.15}
-        color="#556070"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        FRONTAL
-      </Text>
-      <Text
-        position={[0.3, 1.3, 0.7]}
-        fontSize={0.15}
-        color="#556070"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        PARIETAL
-      </Text>
-      <Text
-        position={[-0.5, -0.85, 0.7]}
-        fontSize={0.15}
-        color="#556070"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        TEMPORAL
-      </Text>
-      <Text
-        position={[1.1, -0.0, 0.75]}
-        fontSize={0.16}
-        color="#00d2a0"
-        font="/fonts/GeistMono-Bold.ttf"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-      >
-        V1
-      </Text>
-
-      {/* Dorsal / Ventral labels */}
-      <Text
-        position={[1.1, 0.65, 0.75]}
-        fontSize={0.1}
-        color="#00d2a0"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        DORSAL (lower field)
-      </Text>
-      <Text
-        position={[1.1, -0.6, 0.75]}
-        fontSize={0.1}
-        color="#00d2a0"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        VENTRAL (upper field)
-      </Text>
-
-      {/* Posterior / Anterior */}
-      <Text
-        position={[1.85, -0.15, 0.75]}
-        fontSize={0.08}
-        color="#00d2a088"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {"POSTERIOR\n(fovea)"}
-      </Text>
-      <Text
-        position={[0.15, -0.15, 0.75]}
-        fontSize={0.08}
-        color="#00d2a088"
-        font="/fonts/GeistMono-Regular.ttf"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {"ANTERIOR\n(periphery)"}
-      </Text>
-
-      {/* Fovea marker at posterior pole */}
-      <mesh position={[1.62, 0.0, 0.65]}>
-        <sphereGeometry args={[0.04, 16, 16]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-      <mesh position={[1.62, 0.0, 0.65]}>
-        <ringGeometry args={[0.06, 0.08, 32]} />
-        <meshBasicMaterial
-          color="#ffffff"
-          transparent
-          opacity={0.4}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    </group>
+  // Cerebellum notch
+  ctx.bezierCurveTo(
+    1.3 * scaleX, 0.9 * scaleY,
+    1.0 * scaleX, 1.05 * scaleY,
+    0.6 * scaleX, 1.0 * scaleY
   )
+
+  // Inferior temporal
+  ctx.bezierCurveTo(
+    0.2 * scaleX, 0.95 * scaleY,
+    -0.3 * scaleX, 0.85 * scaleY,
+    -0.7 * scaleX, 0.8 * scaleY
+  )
+
+  // Brain stem area
+  ctx.bezierCurveTo(
+    -1.1 * scaleX, 0.75 * scaleY,
+    -1.5 * scaleX, 0.6 * scaleY,
+    -1.7 * scaleX, 0.4 * scaleY
+  )
+
+  // Close frontal base
+  ctx.bezierCurveTo(
+    -1.85 * scaleX, 0.25 * scaleY,
+    -1.9 * scaleX, 0.15 * scaleY,
+    -1.9 * scaleX, 0.1 * scaleY
+  )
+
+  ctx.closePath()
+  ctx.restore()
+}
+
+// Draw the V1/occipital lobe region
+function drawOccipitalRegion(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale: number,
+  rotY: number,
+  rotX: number
+) {
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  ctx.save()
+  ctx.translate(cx, cy + shiftY)
+
+  ctx.beginPath()
+
+  // Anterior boundary of V1 (roughly parieto-occipital sulcus)
+  ctx.moveTo(0.65 * scaleX, -0.05 * scaleY)
+
+  // Dorsal bank to posterior pole
+  ctx.bezierCurveTo(
+    0.85 * scaleX, -0.65 * scaleY,
+    1.4 * scaleX, -0.95 * scaleY,
+    1.75 * scaleX, -0.55 * scaleY
+  )
+
+  // Around occipital pole
+  ctx.bezierCurveTo(
+    1.88 * scaleX, -0.05 * scaleY,
+    1.85 * scaleX, 0.35 * scaleY,
+    1.6 * scaleX, 0.65 * scaleY
+  )
+
+  // Ventral bank back to anterior
+  ctx.bezierCurveTo(
+    1.3 * scaleX, 0.85 * scaleY,
+    0.85 * scaleX, 0.6 * scaleY,
+    0.65 * scaleX, -0.05 * scaleY
+  )
+
+  ctx.closePath()
+  ctx.restore()
+}
+
+// Get the bounding box of V1 region for heatmap mapping
+function getV1Bounds(cx: number, cy: number, scale: number, rotY: number, rotX: number) {
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  return {
+    left: cx + 0.55 * scaleX,
+    right: cx + 1.9 * scaleX,
+    top: cy + shiftY - 1.0 * scaleY,
+    bottom: cy + shiftY + 0.9 * scaleY,
+    cx,
+    cy: cy + shiftY,
+    scaleX,
+    scaleY,
+  }
+}
+
+// Draw calcarine sulcus
+function drawCalcarine(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale: number,
+  rotY: number,
+  rotX: number
+) {
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  ctx.save()
+  ctx.translate(cx, cy + shiftY)
+
+  ctx.beginPath()
+  ctx.moveTo(0.65 * scaleX, -0.02 * scaleY)
+  ctx.bezierCurveTo(
+    0.9 * scaleX, 0.0 * scaleY,
+    1.3 * scaleX, 0.02 * scaleY,
+    1.82 * scaleX, 0.0 * scaleY
+  )
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([6, 4])
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.restore()
+}
+
+// Draw sulci lines on the brain surface for realism
+function drawSulci(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale: number,
+  rotY: number,
+  rotX: number
+) {
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  ctx.save()
+  ctx.translate(cx, cy + shiftY)
+  ctx.strokeStyle = "rgba(100, 120, 150, 0.2)"
+  ctx.lineWidth = 1
+
+  // Central sulcus
+  ctx.beginPath()
+  ctx.moveTo(0.35 * scaleX, -1.5 * scaleY)
+  ctx.bezierCurveTo(
+    0.25 * scaleX, -1.0 * scaleY,
+    0.15 * scaleX, -0.3 * scaleY,
+    -0.1 * scaleX, 0.3 * scaleY
+  )
+  ctx.stroke()
+
+  // Sylvian fissure
+  ctx.beginPath()
+  ctx.moveTo(-0.1 * scaleX, 0.2 * scaleY)
+  ctx.bezierCurveTo(
+    -0.5 * scaleX, 0.05 * scaleY,
+    -1.0 * scaleX, -0.1 * scaleY,
+    -1.4 * scaleX, -0.05 * scaleY
+  )
+  ctx.stroke()
+
+  // Parieto-occipital sulcus
+  ctx.beginPath()
+  ctx.moveTo(0.65 * scaleX, -1.35 * scaleY)
+  ctx.bezierCurveTo(
+    0.7 * scaleX, -0.8 * scaleY,
+    0.68 * scaleX, -0.3 * scaleY,
+    0.65 * scaleX, 0.0 * scaleY
+  )
+  ctx.strokeStyle = "rgba(0, 210, 160, 0.35)"
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.restore()
+}
+
+// Draw labels
+function drawLabels(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale: number,
+  rotY: number,
+  rotX: number
+) {
+  const cosY = Math.cos(rotY)
+  const scaleX = scale * Math.max(0.3, Math.abs(cosY))
+  const scaleY = scale
+  const shiftY = Math.sin(rotX) * scale * 0.15
+
+  ctx.save()
+  ctx.translate(cx, cy + shiftY)
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+
+  // Lobe labels
+  ctx.font = `${Math.max(10, scale * 0.12)}px monospace`
+  ctx.fillStyle = "rgba(100, 120, 150, 0.5)"
+
+  ctx.fillText("FRONTAL", -1.2 * scaleX, -0.7 * scaleY)
+  ctx.fillText("PARIETAL", 0.1 * scaleX, -1.2 * scaleY)
+  ctx.fillText("TEMPORAL", -0.5 * scaleX, 0.65 * scaleY)
+
+  // V1 label
+  ctx.font = `bold ${Math.max(12, scale * 0.16)}px monospace`
+  ctx.fillStyle = "rgba(0, 210, 160, 0.9)"
+  ctx.fillText("V1", 1.25 * scaleX, -0.0 * scaleY)
+
+  // Dorsal / Ventral
+  ctx.font = `${Math.max(9, scale * 0.09)}px monospace`
+  ctx.fillStyle = "rgba(0, 210, 160, 0.6)"
+  ctx.fillText("dorsal (lower field)", 1.25 * scaleX, -0.55 * scaleY)
+  ctx.fillText("ventral (upper field)", 1.25 * scaleX, 0.55 * scaleY)
+
+  // Posterior / Anterior
+  ctx.font = `${Math.max(8, scale * 0.08)}px monospace`
+  ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
+  ctx.fillText("fovea", 1.82 * scaleX, -0.2 * scaleY)
+  ctx.fillText("periphery", 0.5 * scaleX, -0.2 * scaleY)
+
+  // Fovea dot
+  ctx.beginPath()
+  ctx.arc(1.82 * scaleX, 0.0 * scaleY, 4, 0, Math.PI * 2)
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)"
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(1.82 * scaleX, 0.0 * scaleY, 7, 0, Math.PI * 2)
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.restore()
 }
 
 export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [rotY, setRotY] = useState(-0.15)
+  const [rotX, setRotX] = useState(0)
+  const [zoom, setZoom] = useState(1.0)
+  const isDragging = useRef(false)
+  const lastMouse = useRef({ x: 0, y: 0 })
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+  }, [])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return
+    const dx = e.clientX - lastMouse.current.x
+    const dy = e.clientY - lastMouse.current.y
+    setRotY((prev) => prev + dx * 0.008)
+    setRotX((prev) => Math.max(-0.6, Math.min(0.6, prev + dy * 0.008)))
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false
+  }, [])
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    setZoom((prev) => Math.max(0.5, Math.min(2.5, prev - e.deltaY * 0.001)))
+  }, [])
+
+  // Touch support
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      isDragging.current = true
+      lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging.current || e.touches.length !== 1) return
+    const dx = e.touches[0].clientX - lastMouse.current.x
+    const dy = e.touches[0].clientY - lastMouse.current.y
+    setRotY((prev) => prev + dx * 0.008)
+    setRotX((prev) => Math.max(-0.6, Math.min(0.6, prev + dy * 0.008)))
+    lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    isDragging.current = false
+  }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const dpr = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * dpr
+    canvas.height = rect.height * dpr
+    ctx.scale(dpr, dpr)
+
+    const width = rect.width
+    const height = rect.height
+
+    // Clear
+    ctx.fillStyle = "#060810"
+    ctx.fillRect(0, 0, width, height)
+
+    const centerX = width * 0.48
+    const centerY = height * 0.48
+    const baseScale = Math.min(width, height) * 0.28 * zoom
+
+    // Draw brain outline fill
+    drawBrainOutline(ctx, centerX, centerY, baseScale, rotY, rotX)
+    ctx.fillStyle = "rgba(18, 22, 36, 0.9)"
+    ctx.fill()
+
+    // Draw sulci
+    drawSulci(ctx, centerX, centerY, baseScale, rotY, rotX)
+
+    // Draw brain outline stroke
+    drawBrainOutline(ctx, centerX, centerY, baseScale, rotY, rotX)
+    ctx.strokeStyle = "rgba(80, 100, 130, 0.4)"
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Draw V1 heatmap
+    if (matrix.length > 0) {
+      // Clip to V1 region
+      drawOccipitalRegion(ctx, centerX, centerY, baseScale, rotY, rotX)
+      ctx.save()
+      ctx.clip()
+
+      const bounds = getV1Bounds(centerX, centerY, baseScale, rotY, rotX)
+      const halfGrid = gridSize / 2
+
+      // Render heatmap pixels within the V1 region
+      const pixelSize = 3
+      for (let py = bounds.top; py < bounds.bottom; py += pixelSize) {
+        for (let px = bounds.left; px < bounds.right; px += pixelSize) {
+          // Map pixel position to V1 retinotopic coordinates
+          const u = (px - bounds.left) / (bounds.right - bounds.left)
+          const v = (py - bounds.top) / (bounds.bottom - bounds.top)
+
+          // Log-polar: u maps anterior->posterior (periphery->fovea)
+          const logScale = 0.4
+          const eccentricity =
+            (Math.exp((1 - u) / logScale) - 1) / (Math.exp(1 / logScale) - 1)
+          const maxEcc = halfGrid * Math.sqrt(2)
+          const ecc = eccentricity * maxEcc
+
+          // v maps dorsal->ventral (lower->upper visual field)
+          const angle = (v - 0.5) * Math.PI * 0.85
+
+          const visualX = ecc * Math.cos(angle)
+          const visualY = ecc * Math.sin(angle)
+
+          const gridCol = Math.floor(halfGrid + visualX)
+          const gridRow = Math.floor(halfGrid - visualY)
+
+          if (
+            gridRow >= 0 &&
+            gridRow < gridSize &&
+            gridCol >= 0 &&
+            gridCol < gridSize &&
+            matrix[gridRow] &&
+            matrix[gridRow][gridCol] !== undefined
+          ) {
+            const value = matrix[gridRow][gridCol]
+            const normalized = (value - 2) / 75
+            const [r, g, b] = heatColor(normalized)
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+            ctx.fillRect(px, py, pixelSize, pixelSize)
+          }
+        }
+      }
+
+      ctx.restore()
+    }
+
+    // Draw V1 region border
+    drawOccipitalRegion(ctx, centerX, centerY, baseScale, rotY, rotX)
+    ctx.strokeStyle = "rgba(0, 210, 160, 0.5)"
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Draw V1 glow border
+    drawOccipitalRegion(ctx, centerX, centerY, baseScale, rotY, rotX)
+    ctx.strokeStyle = "rgba(0, 210, 160, 0.12)"
+    ctx.lineWidth = 6
+    ctx.stroke()
+
+    // Draw calcarine sulcus
+    drawCalcarine(ctx, centerX, centerY, baseScale, rotY, rotX)
+
+    // Draw labels
+    drawLabels(ctx, centerX, centerY, baseScale, rotY, rotX)
+  }, [matrix, gridSize, rotY, rotX, zoom])
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -447,41 +501,32 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
           Occipital Cortex Map
         </h2>
       </div>
-      <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#060810]">
-        <Canvas
-          camera={{ position: [0, 0, 4.5], fov: 40 }}
-          gl={{ antialias: true, alpha: false }}
-          style={{ background: "#060810" }}
-        >
-          <color attach="background" args={["#060810"]} />
-
-          <ambientLight intensity={0.4} />
-          <directionalLight position={[3, 3, 5]} intensity={0.8} />
-          <directionalLight position={[-2, -1, 3]} intensity={0.3} />
-          <pointLight position={[2, 0, 3]} intensity={0.6} color="#00d2a0" />
-
-          <BrainModel matrix={matrix} gridSize={gridSize} />
-
-          <OrbitControls
-            enablePan={false}
-            enableZoom={true}
-            minDistance={2.5}
-            maxDistance={8}
-            minPolarAngle={Math.PI * 0.2}
-            maxPolarAngle={Math.PI * 0.8}
-            autoRotate={false}
-          />
-        </Canvas>
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#060810]">
+        <canvas
+          ref={canvasRef}
+          className="h-full w-full cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        />
+        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/70 px-2 py-1 font-mono text-[10px] text-muted-foreground">
+          drag to rotate / scroll to zoom
+        </div>
       </div>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
         <span className="text-[10px]">low stimulus</span>
         <div className="flex h-2 flex-1 overflow-hidden rounded-sm">
-          <div className="flex-1" style={{ background: "rgb(5, 8, 48)" }} />
-          <div className="flex-1" style={{ background: "rgb(10, 64, 96)" }} />
-          <div className="flex-1" style={{ background: "rgb(13, 186, 160)" }} />
-          <div className="flex-1" style={{ background: "rgb(160, 232, 48)" }} />
-          <div className="flex-1" style={{ background: "rgb(255, 160, 32)" }} />
-          <div className="flex-1" style={{ background: "rgb(255, 240, 224)" }} />
+          <div className="flex-1" style={{ background: "rgb(8, 12, 60)" }} />
+          <div className="flex-1" style={{ background: "rgb(15, 60, 110)" }} />
+          <div className="flex-1" style={{ background: "rgb(20, 180, 170)" }} />
+          <div className="flex-1" style={{ background: "rgb(160, 230, 50)" }} />
+          <div className="flex-1" style={{ background: "rgb(255, 180, 30)" }} />
+          <div className="flex-1" style={{ background: "rgb(255, 245, 220)" }} />
         </div>
         <span className="text-[10px]">high stimulus</span>
       </div>

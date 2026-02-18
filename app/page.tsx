@@ -1,16 +1,10 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import dynamic from "next/dynamic"
 import { CameraFeed } from "@/components/camera-feed"
 import { BrightnessMatrix } from "@/components/brightness-matrix"
 import { PhospheneGrid } from "@/components/phosphene-grid"
-
-const OccipitalHeatmap = dynamic(
-  () =>
-    import("@/components/occipital-heatmap").then((mod) => mod.OccipitalHeatmap),
-  { ssr: false }
-)
+import { OccipitalHeatmap } from "@/components/occipital-heatmap"
 
 const GRID_SIZES = [8, 12, 16, 24, 32]
 
