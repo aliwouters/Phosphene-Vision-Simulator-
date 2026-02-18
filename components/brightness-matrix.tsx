@@ -8,11 +8,28 @@ interface BrightnessMatrixProps {
 export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
   const getColor = (value: number) => {
     const normalized = (value - 2) / 75
-    const lightness = 0.2 + normalized * 0.7
-    if (normalized > 0.7) {
-      return `oklch(${lightness} 0.12 165)`
+    // Apply a power curve for more visual contrast between dark and bright
+    const curved = Math.pow(normalized, 0.6)
+    const lightness = 0.12 + curved * 0.88
+
+    if (normalized > 0.6) {
+      // Bright values get a strong teal tint
+      const chroma = 0.08 + (normalized - 0.6) * 0.3
+      return `oklch(${lightness} ${chroma} 165)`
     }
-    return `oklch(${lightness} 0.01 260)`
+    if (normalized < 0.2) {
+      // Dark values get a subtle blue tint
+      return `oklch(${lightness} 0.03 260)`
+    }
+    return `oklch(${lightness} 0.02 200)`
+  }
+
+  const getCellBg = (value: number) => {
+    const normalized = (value - 2) / 75
+    // Subtle background glow for brighter cells
+    const bgLight = 0.12 + normalized * 0.06
+    const bgChroma = normalized > 0.5 ? 0.01 + normalized * 0.02 : 0.005
+    return `oklch(${bgLight} ${bgChroma} 200)`
   }
 
   const getFontSize = () => {
@@ -47,8 +64,7 @@ export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
                     className={`flex items-center justify-center font-mono ${getFontSize()} leading-none rounded-[1px]`}
                     style={{
                       color: getColor(value),
-                      backgroundColor:
-                        "oklch(0.15 0.005 260)",
+                      backgroundColor: getCellBg(value),
                     }}
                   >
                     {value}

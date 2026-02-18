@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { CameraFeed } from "@/components/camera-feed"
 import { BrightnessMatrix } from "@/components/brightness-matrix"
 import { PhospheneGrid } from "@/components/phosphene-grid"
+import { OccipitalHeatmap } from "@/components/occipital-heatmap"
 
 const GRID_SIZES = [8, 12, 16, 24, 32]
 
@@ -53,10 +54,11 @@ export default function Page() {
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-3 lg:gap-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:gap-6">
         <CameraFeed gridSize={gridSize} onMatrixUpdate={handleMatrixUpdate} />
         <BrightnessMatrix matrix={matrix} gridSize={gridSize} />
         <PhospheneGrid matrix={matrix} gridSize={gridSize} />
+        <OccipitalHeatmap matrix={matrix} gridSize={gridSize} />
       </div>
     </main>
   )
