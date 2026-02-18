@@ -8,60 +8,40 @@ interface OccipitalHeatmapProps {
 }
 
 /**
- * Retinotopic mapping: the visual field maps onto V1 (primary visual cortex)
- * in the occipital lobe via a log-polar transform.
- *
- * - Central vision (fovea) maps to the posterior pole of the occipital lobe
- * - Peripheral vision maps more anteriorly
- * - Upper visual field maps to the lower bank of the calcarine sulcus (ventral)
- * - Lower visual field maps to the upper bank (dorsal)
- * - Left visual field maps to right hemisphere, right to left
- *
- * We use a simplified log-polar mapping:
- *   cortical_r = k * ln(1 + eccentricity)
- *   cortical_theta = polar_angle
- * where eccentricity = distance from center of visual field
+ * Simplified retinotopic map:
+ * - The occipital lobe is drawn as a medial-view brain section
+ * - V1 sits along the calcarine sulcus
+ * - Center of visual field (fovea) -> posterior pole (back of brain)
+ * - Peripheral vision -> anterior (deeper into sulcus)
+ * - Upper visual field -> ventral bank (below calcarine)
+ * - Lower visual field -> dorsal bank (above calcarine)
  */
 
-function heatColor(normalized: number): [number, number, number] {
-  // Blue (cold/dark) -> Cyan -> Green -> Yellow -> Red -> White (hot/bright)
-  const t = Math.max(0, Math.min(1, normalized))
-
-  let r: number, g: number, b: number
-
-  if (t < 0.2) {
-    // Deep blue to blue
-    const s = t / 0.2
-    r = 10
-    g = 10 + s * 40
-    b = 60 + s * 140
-  } else if (t < 0.4) {
-    // Blue to cyan
-    const s = (t - 0.2) / 0.2
-    r = 10
-    g = 50 + s * 180
-    b = 200 - s * 30
-  } else if (t < 0.6) {
-    // Cyan to green/yellow
-    const s = (t - 0.4) / 0.2
-    r = 10 + s * 200
-    g = 230 - s * 20
-    b = 170 - s * 150
-  } else if (t < 0.8) {
-    // Yellow to orange/red
-    const s = (t - 0.6) / 0.2
-    r = 210 + s * 45
-    g = 210 - s * 140
-    b = 20 - s * 10
-  } else {
-    // Red to white-hot
-    const s = (t - 0.8) / 0.2
-    r = 255
-    g = 70 + s * 185
-    b = 10 + s * 200
+function heatColor(t: number): [number, number, number] {
+  const v = Math.max(0, Math.min(1, t))
+  // Dark blue -> Cyan -> Yellow -> Orange -> White
+  if (v < 0.15) {
+    const s = v / 0.15
+    return [Math.round(8 + s * 5), Math.round(8 + s * 20), Math.round(40 + s * 80)]
   }
-
-  return [Math.round(r), Math.round(g), Math.round(b)]
+  if (v < 0.35) {
+    const s = (v - 0.15) / 0.2
+    return [Math.round(13), Math.round(28 + s * 180), Math.round(120 + s * 80)]
+  }
+  if (v < 0.55) {
+    const s = (v - 0.35) / 0.2
+    return [Math.round(13 + s * 220), Math.round(208 + s * 42), Math.round(200 - s * 150)]
+  }
+  if (v < 0.75) {
+    const s = (v - 0.55) / 0.2
+    return [Math.round(233 + s * 22), Math.round(250 - s * 100), Math.round(50 - s * 30)]
+  }
+  if (v < 0.9) {
+    const s = (v - 0.75) / 0.15
+    return [255, Math.round(150 - s * 60), Math.round(20 + s * 20)]
+  }
+  const s = (v - 0.9) / 0.1
+  return [255, Math.round(90 + s * 165), Math.round(40 + s * 215)]
 }
 
 export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
@@ -69,7 +49,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || matrix.length === 0) return
+    if (!canvas) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
@@ -80,196 +60,276 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
     canvas.height = rect.height * dpr
     ctx.scale(dpr, dpr)
 
-    const width = rect.width
-    const height = rect.height
+    const W = rect.width
+    const H = rect.height
 
-    // Dark background
+    // Clear
     ctx.fillStyle = "#080a0f"
-    ctx.fillRect(0, 0, width, height)
+    ctx.fillRect(0, 0, W, H)
 
-    // Draw the occipital lobe outline
-    const cx = width / 2
-    const cy = height * 0.48
+    // --- Draw brain outline (medial sagittal view, left hemisphere) ---
+    // Brain occupies top ~75% of canvas, centered horizontally
+    const brainCx = W * 0.48
+    const brainCy = H * 0.42
+    const brainW = W * 0.44
+    const brainH = H * 0.36
 
-    // Main brain outline (medial view of occipital lobe)
-    const lobeW = width * 0.42
-    const lobeH = height * 0.42
-
-    // Draw lobe shape path
+    // Full brain silhouette using bezier curves (medial view)
     ctx.save()
-    ctx.beginPath()
 
-    // Create an elliptical occipital lobe shape
-    // The occipital lobe is roughly wedge/fan shaped at the posterior of the brain
-    const lobePoints: [number, number][] = []
-    const segments = 80
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2
-      // Vary radius to create a more organic brain-like shape
-      let rx = lobeW
-      let ry = lobeH
+    // --- Build brain outline path ---
+    function brainPath() {
+      ctx.beginPath()
+      // Start at frontal pole (left)
+      const fx = brainCx - brainW * 0.95
+      const fy = brainCy - brainH * 0.05
 
-      // Make it more pointed at the back (posterior = left side of our view)
-      // and wider at the front (anterior = right)
-      const angleFactor = Math.cos(angle)
-      const vertFactor = Math.sin(angle)
+      ctx.moveTo(fx, fy)
 
-      // Organic variation
-      rx *= 1 + 0.12 * Math.cos(angle * 2) - 0.08 * Math.cos(angle * 3)
-      ry *= 1 + 0.08 * Math.sin(angle * 2) + 0.05 * Math.cos(angle * 4)
+      // Frontal lobe top curve
+      ctx.bezierCurveTo(
+        brainCx - brainW * 0.85, brainCy - brainH * 0.9,
+        brainCx - brainW * 0.4, brainCy - brainH * 1.05,
+        brainCx, brainCy - brainH * 0.95
+      )
 
-      // Flatten the top slightly and make bottom rounder (cerebellum region)
-      if (vertFactor < 0) {
-        ry *= 0.9
-      }
+      // Parietal lobe curve
+      ctx.bezierCurveTo(
+        brainCx + brainW * 0.35, brainCy - brainH * 0.85,
+        brainCx + brainW * 0.7, brainCy - brainH * 0.7,
+        brainCx + brainW * 0.9, brainCy - brainH * 0.35
+      )
 
-      // Indent for the calcarine sulcus (horizontal fissure through the middle)
-      const calcIndent = Math.exp(-Math.pow(vertFactor, 2) * 8) * 0.06
-      rx *= 1 - calcIndent * Math.abs(angleFactor)
+      // Occipital pole (posterior - rightmost point)
+      ctx.bezierCurveTo(
+        brainCx + brainW * 1.0, brainCy - brainH * 0.1,
+        brainCx + brainW * 1.0, brainCy + brainH * 0.1,
+        brainCx + brainW * 0.9, brainCy + brainH * 0.3
+      )
 
-      const x = cx + rx * Math.cos(angle)
-      const y = cy + ry * Math.sin(angle)
-      lobePoints.push([x, y])
+      // Below occipital, cerebellum notch
+      ctx.bezierCurveTo(
+        brainCx + brainW * 0.75, brainCy + brainH * 0.55,
+        brainCx + brainW * 0.5, brainCy + brainH * 0.65,
+        brainCx + brainW * 0.3, brainCy + brainH * 0.6
+      )
+
+      // Temporal lobe / brain stem
+      ctx.bezierCurveTo(
+        brainCx - brainW * 0.1, brainCy + brainH * 0.55,
+        brainCx - brainW * 0.5, brainCy + brainH * 0.6,
+        brainCx - brainW * 0.7, brainCy + brainH * 0.45
+      )
+
+      // Back up to frontal pole
+      ctx.bezierCurveTo(
+        brainCx - brainW * 0.85, brainCy + brainH * 0.35,
+        brainCx - brainW * 0.95, brainCy + brainH * 0.15,
+        fx, fy
+      )
+
+      ctx.closePath()
     }
 
-    // Draw the lobe path
-    ctx.moveTo(lobePoints[0][0], lobePoints[0][1])
-    for (let i = 1; i < lobePoints.length; i++) {
-      ctx.lineTo(lobePoints[i][0], lobePoints[i][1])
+    // Fill brain silhouette with dark gray
+    brainPath()
+    ctx.fillStyle = "#111520"
+    ctx.fill()
+
+    // --- Define occipital lobe region for the heatmap ---
+    // Occipital lobe = posterior portion of the brain around calcarine sulcus
+    const occCx = brainCx + brainW * 0.65  // Center of occipital region
+    const occCy = brainCy - brainH * 0.02
+    const occRadiusX = brainW * 0.38
+    const occRadiusY = brainH * 0.55
+
+    function occipitalPath() {
+      ctx.beginPath()
+      // Wedge shape representing V1 area along calcarine
+      // Top (dorsal bank)
+      ctx.moveTo(occCx - occRadiusX * 0.15, occCy - occRadiusY * 0.05)
+
+      ctx.bezierCurveTo(
+        occCx + occRadiusX * 0.1, occCy - occRadiusY * 0.7,
+        occCx + occRadiusX * 0.5, occCy - occRadiusY * 0.8,
+        occCx + occRadiusX * 0.85, occCy - occRadiusY * 0.35
+      )
+
+      // Posterior pole (tip)
+      ctx.bezierCurveTo(
+        occCx + occRadiusX * 1.0, occCy - occRadiusY * 0.1,
+        occCx + occRadiusX * 1.0, occCy + occRadiusY * 0.1,
+        occCx + occRadiusX * 0.85, occCy + occRadiusY * 0.35
+      )
+
+      // Bottom (ventral bank)
+      ctx.bezierCurveTo(
+        occCx + occRadiusX * 0.5, occCy + occRadiusY * 0.75,
+        occCx + occRadiusX * 0.1, occCy + occRadiusY * 0.65,
+        occCx - occRadiusX * 0.15, occCy + occRadiusY * 0.05
+      )
+
+      ctx.closePath()
     }
-    ctx.closePath()
+
+    // Clip to both the brain shape AND the occipital region
+    // First clip to brain
+    brainPath()
     ctx.clip()
 
-    // Now paint the heatmap inside the clipped lobe region
-    // Retinotopic mapping: convert each matrix cell to a cortical position
+    // Now clip to occipital lobe
+    occipitalPath()
+    ctx.clip()
 
-    const halfGrid = gridSize / 2
-    // k controls how much cortical space foveal (center) gets vs peripheral
-    const kScale = Math.min(lobeW, lobeH) * 0.65
-    const maxEcc = Math.sqrt(2) * halfGrid
+    // --- Paint the heatmap inside the clipped occipital region ---
+    if (matrix.length > 0) {
+      const halfGrid = gridSize / 2
+      const posteriorX = occCx + occRadiusX * 0.85  // Posterior pole = fovea
+      const anteriorX = occCx - occRadiusX * 0.15    // Anterior boundary = periphery
+      const corticalSpanX = posteriorX - anteriorX
+      const corticalSpanY = occRadiusY * 0.7
 
-    // We need to build a pixel buffer for smooth heatmap
-    // Sample every pixel in the lobe and find which matrix cell it maps to
-    const imgData = ctx.createImageData(Math.ceil(width), Math.ceil(height))
-    const pixels = imgData.data
+      // Build image data for smooth mapping
+      const imgData = ctx.createImageData(Math.ceil(W), Math.ceil(H))
+      const pixels = imgData.data
 
-    for (let py = 0; py < height; py++) {
-      for (let px = 0; px < width; px++) {
-        // Convert pixel to cortical coordinates relative to center
-        const dx = px - cx
-        const dy = py - cy
+      for (let py = Math.floor(occCy - occRadiusY); py < Math.ceil(occCy + occRadiusY); py++) {
+        for (let px = Math.floor(anteriorX - 10); px < Math.ceil(posteriorX + 10); px++) {
+          if (px < 0 || px >= W || py < 0 || py >= H) continue
 
-        // Check if inside lobe bounds (rough ellipse check)
-        const normX = dx / lobeW
-        const normY = dy / lobeH
-        const distFromCenter = Math.sqrt(normX * normX + normY * normY)
-        if (distFromCenter > 1.15) continue
+          const dx = px - posteriorX
+          const dy = py - occCy
 
-        // Inverse retinotopic map: cortical position -> visual field position
-        // cortical distance from posterior pole (center of lobe)
-        const corticalDist = Math.sqrt(dx * dx + dy * dy)
-        const corticalAngle = Math.atan2(dy, dx)
+          // Distance from posterior pole (logarithmic for cortical magnification)
+          const distFromPosterior = Math.sqrt(dx * dx + dy * dy)
+          const maxDist = corticalSpanX
 
-        // Inverse log-polar: eccentricity = exp(corticalDist / k) - 1
-        const eccentricity = Math.exp(corticalDist / kScale) - 1
+          if (distFromPosterior > maxDist * 1.1) continue
 
-        if (eccentricity > maxEcc) continue
+          // Eccentricity: log-polar inverse mapping
+          // Posterior pole (close) = fovea (center of visual field)
+          // Anterior (far) = periphery
+          const logScale = corticalSpanX * 0.45
+          const eccentricity = Math.exp(distFromPosterior / logScale) - 1
+          const maxEcc = Math.sqrt(2) * halfGrid
 
-        // Convert polar visual field coordinates to grid coordinates
-        // Upper visual field -> lower calcarine (positive dy -> negative visual y)
-        // Left visual field -> right hemisphere (positive dx -> negative visual x)
-        const visualX = eccentricity * Math.cos(corticalAngle)
-        const visualY = eccentricity * Math.sin(corticalAngle)
+          if (eccentricity > maxEcc * 1.2) continue
 
-        // Map to grid indices
-        const gridCol = Math.floor(halfGrid + visualX)
-        const gridRow = Math.floor(halfGrid + visualY)
+          // Angle from posterior pole determines upper/lower visual field
+          const corticalAngle = Math.atan2(dy, -dx) // negative dx because posterior is right
 
-        if (
-          gridRow < 0 ||
-          gridRow >= gridSize ||
-          gridCol < 0 ||
-          gridCol >= gridSize
-        )
-          continue
-        if (!matrix[gridRow] || matrix[gridRow][gridCol] === undefined) continue
+          // Map to visual field: upper cortex (dorsal, dy<0) -> lower visual field
+          // lower cortex (ventral, dy>0) -> upper visual field
+          const visualAngle = corticalAngle
 
-        const value = matrix[gridRow][gridCol]
-        const normalized = (value - 2) / 75
+          const visualX = eccentricity * Math.cos(visualAngle)
+          const visualY = eccentricity * Math.sin(visualAngle)
 
-        const [r, g, b] = heatColor(normalized)
-        const idx = (py * Math.ceil(width) + px) * 4
-        pixels[idx] = r
-        pixels[idx + 1] = g
-        pixels[idx + 2] = b
-        pixels[idx + 3] = 220
+          const gridCol = Math.floor(halfGrid + visualX)
+          const gridRow = Math.floor(halfGrid + visualY)
+
+          if (gridRow < 0 || gridRow >= gridSize || gridCol < 0 || gridCol >= gridSize) continue
+          if (!matrix[gridRow] || matrix[gridRow][gridCol] === undefined) continue
+
+          const value = matrix[gridRow][gridCol]
+          const normalized = (value - 2) / 75
+
+          const [r, g, b] = heatColor(normalized)
+          const idx = (py * Math.ceil(W) + px) * 4
+          pixels[idx] = r
+          pixels[idx + 1] = g
+          pixels[idx + 2] = b
+          pixels[idx + 3] = 210
+        }
       }
+
+      ctx.putImageData(imgData, 0, 0)
+    } else {
+      // No data -- fill occipital with dim blue
+      occipitalPath()
+      ctx.fillStyle = "rgba(15, 25, 60, 0.5)"
+      ctx.fill()
     }
 
-    ctx.putImageData(imgData, 0, 0)
     ctx.restore()
 
-    // Re-draw the lobe outline on top
-    ctx.beginPath()
-    ctx.moveTo(lobePoints[0][0], lobePoints[0][1])
-    for (let i = 1; i < lobePoints.length; i++) {
-      ctx.lineTo(lobePoints[i][0], lobePoints[i][1])
-    }
-    ctx.closePath()
-    ctx.strokeStyle = "rgba(0, 210, 160, 0.5)"
+    // --- Re-draw outlines on top ---
+
+    // Full brain outline
+    brainPath()
+    ctx.strokeStyle = "rgba(100, 120, 140, 0.4)"
     ctx.lineWidth = 1.5
     ctx.stroke()
 
-    // Draw calcarine sulcus (horizontal line through middle)
+    // Occipital lobe outline (highlighted)
+    occipitalPath()
+    ctx.strokeStyle = "rgba(0, 210, 160, 0.6)"
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    // Calcarine sulcus (dashed line through middle of V1)
     ctx.beginPath()
-    ctx.moveTo(cx - lobeW * 0.95, cy)
+    ctx.moveTo(occCx - occRadiusX * 0.1, occCy)
     ctx.bezierCurveTo(
-      cx - lobeW * 0.5,
-      cy - 2,
-      cx + lobeW * 0.3,
-      cy + 2,
-      cx + lobeW * 0.7,
-      cy
+      occCx + occRadiusX * 0.2, occCy - 1,
+      occCx + occRadiusX * 0.6, occCy + 1,
+      occCx + occRadiusX * 0.85, occCy
     )
-    ctx.strokeStyle = "rgba(0, 210, 160, 0.35)"
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.35)"
     ctx.lineWidth = 1
-    ctx.setLineDash([4, 3])
+    ctx.setLineDash([3, 3])
     ctx.stroke()
     ctx.setLineDash([])
 
-    // Labels
-    ctx.font = "10px 'Geist Mono', monospace"
-    ctx.fillStyle = "rgba(0, 210, 160, 0.6)"
-
-    // Posterior label (foveal/central vision)
+    // --- Labels ---
+    ctx.font = `${Math.max(9, W * 0.025)}px 'Geist Mono', monospace`
     ctx.textAlign = "center"
-    ctx.fillText("POSTERIOR", cx, cy + lobeH + 20)
-    ctx.fillText("(foveal)", cx, cy + lobeH + 32)
 
-    // Dorsal / Ventral
-    ctx.save()
-    ctx.translate(cx - lobeW - 16, cy)
-    ctx.rotate(-Math.PI / 2)
-    ctx.textAlign = "center"
-    ctx.fillText("DORSAL", 0, 0)
-    ctx.restore()
+    // Brain region labels
+    ctx.fillStyle = "rgba(100, 120, 140, 0.5)"
+    ctx.fillText("FRONTAL", brainCx - brainW * 0.55, brainCy - brainH * 0.4)
+    ctx.fillText("PARIETAL", brainCx + brainW * 0.15, brainCy - brainH * 0.65)
+    ctx.fillText("TEMPORAL", brainCx - brainW * 0.2, brainCy + brainH * 0.48)
 
-    ctx.save()
-    ctx.translate(cx + lobeW + 16, cy)
-    ctx.rotate(Math.PI / 2)
-    ctx.textAlign = "center"
-    ctx.fillText("VENTRAL", 0, 0)
-    ctx.restore()
+    // Occipital label (prominent)
+    ctx.fillStyle = "rgba(0, 210, 160, 0.7)"
+    ctx.font = `bold ${Math.max(10, W * 0.028)}px 'Geist Mono', monospace`
+    ctx.fillText("V1", occCx + occRadiusX * 0.3, occCy + occRadiusY * 0.92)
 
-    // Draw a small fovea marker at center
-    ctx.beginPath()
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2)
-    ctx.fillStyle = "rgba(255, 255, 255, 0.6)"
-    ctx.fill()
-    ctx.font = "9px 'Geist Mono', monospace"
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)"
+    // Calcarine sulcus label
+    ctx.font = `${Math.max(8, W * 0.02)}px 'Geist Mono', monospace`
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)"
+    ctx.fillText("calcarine sulcus", occCx + occRadiusX * 0.35, occCy - 6)
+
+    // Dorsal / Ventral labels
+    ctx.fillStyle = "rgba(0, 210, 160, 0.45)"
+    ctx.font = `${Math.max(8, W * 0.022)}px 'Geist Mono', monospace`
+    ctx.fillText("DORSAL", occCx + occRadiusX * 0.4, occCy - occRadiusY * 0.5)
+    ctx.fillText("(lower field)", occCx + occRadiusX * 0.4, occCy - occRadiusY * 0.5 + 12)
+    ctx.fillText("VENTRAL", occCx + occRadiusX * 0.4, occCy + occRadiusY * 0.55)
+    ctx.fillText("(upper field)", occCx + occRadiusX * 0.4, occCy + occRadiusY * 0.55 + 12)
+
+    // Posterior / Anterior
+    ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
+    ctx.textAlign = "right"
+    ctx.fillText("POSTERIOR", occCx + occRadiusX * 0.95, occCy + occRadiusY * 0.9)
+    ctx.fillText("(fovea)", occCx + occRadiusX * 0.95, occCy + occRadiusY * 0.9 + 11)
     ctx.textAlign = "left"
-    ctx.fillText("V1", cx + 6, cy + 3)
+    ctx.fillText("ANT.", occCx - occRadiusX * 0.1, occCy + occRadiusY * 0.9)
+    ctx.fillText("(periph.)", occCx - occRadiusX * 0.1, occCy + occRadiusY * 0.9 + 11)
+
+    // Fovea marker at posterior pole
+    const foveaX = occCx + occRadiusX * 0.85
+    ctx.beginPath()
+    ctx.arc(foveaX, occCy, 3, 0, Math.PI * 2)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)"
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(foveaX, occCy, 6, 0, Math.PI * 2)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"
+    ctx.lineWidth = 0.5
+    ctx.stroke()
+
   }, [matrix, gridSize])
 
   return (
@@ -288,15 +348,15 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
         />
       </div>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-        <span className="text-[10px]">cold</span>
+        <span className="text-[10px]">low stimulus</span>
         <div className="flex h-2 flex-1 overflow-hidden rounded-sm">
-          <div className="flex-1" style={{ background: "rgb(10, 30, 120)" }} />
-          <div className="flex-1" style={{ background: "rgb(10, 180, 180)" }} />
-          <div className="flex-1" style={{ background: "rgb(160, 220, 40)" }} />
-          <div className="flex-1" style={{ background: "rgb(240, 140, 10)" }} />
-          <div className="flex-1" style={{ background: "rgb(255, 200, 160)" }} />
+          <div className="flex-1" style={{ background: "rgb(8, 18, 80)" }} />
+          <div className="flex-1" style={{ background: "rgb(13, 140, 170)" }} />
+          <div className="flex-1" style={{ background: "rgb(180, 235, 60)" }} />
+          <div className="flex-1" style={{ background: "rgb(250, 170, 25)" }} />
+          <div className="flex-1" style={{ background: "rgb(255, 230, 220)" }} />
         </div>
-        <span className="text-[10px]">hot</span>
+        <span className="text-[10px]">high stimulus</span>
       </div>
     </div>
   )

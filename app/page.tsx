@@ -54,7 +54,7 @@ export default function Page() {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:gap-6">
+      <div className="grid grid-cols-4 gap-4">
         <CameraFeed gridSize={gridSize} onMatrixUpdate={handleMatrixUpdate} />
         <BrightnessMatrix matrix={matrix} gridSize={gridSize} />
         <PhospheneGrid matrix={matrix} gridSize={gridSize} />
