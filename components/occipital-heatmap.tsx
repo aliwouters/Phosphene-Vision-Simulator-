@@ -272,7 +272,60 @@ function drawSulci(
   ctx.restore()
 }
 
-// Draw labels
+// Draw an arrow line from a label position to a target point on the brain
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  color: string
+) {
+  const dx = toX - fromX
+  const dy = toY - fromY
+  const dist = Math.sqrt(dx * dx + dy * dy)
+  if (dist < 2) return
+
+  // Shorten the line slightly at each end
+  const shortenStart = 4
+  const shortenEnd = 6
+  const nx = dx / dist
+  const ny = dy / dist
+  const sx = fromX + nx * shortenStart
+  const sy = fromY + ny * shortenStart
+  const ex = toX - nx * shortenEnd
+  const ey = toY - ny * shortenEnd
+
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1
+  ctx.setLineDash([3, 3])
+  ctx.beginPath()
+  ctx.moveTo(sx, sy)
+  ctx.lineTo(ex, ey)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // Small arrowhead
+  const headLen = 6
+  const angle = Math.atan2(ey - sy, ex - sx)
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.moveTo(ex, ey)
+  ctx.lineTo(
+    ex - headLen * Math.cos(angle - Math.PI / 6),
+    ey - headLen * Math.sin(angle - Math.PI / 6)
+  )
+  ctx.lineTo(
+    ex - headLen * Math.cos(angle + Math.PI / 6),
+    ey - headLen * Math.sin(angle + Math.PI / 6)
+  )
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+// Draw labels outside the brain with arrows pointing inward
 function drawLabels(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -288,35 +341,101 @@ function drawLabels(
 
   ctx.save()
   ctx.translate(cx, cy + shiftY)
-  ctx.textAlign = "center"
+
+  const lobeFont = `${Math.max(10, scale * 0.12)}px monospace`
+  const lobeColor = "rgba(140, 160, 185, 0.7)"
+  const v1Font = `bold ${Math.max(12, scale * 0.16)}px monospace`
+  const v1Color = "rgba(0, 210, 160, 0.9)"
+  const detailFont = `${Math.max(9, scale * 0.1)}px monospace`
+  const detailColor = "rgba(0, 210, 160, 0.65)"
+  const arrowLobe = "rgba(140, 160, 185, 0.35)"
+  const arrowV1 = "rgba(0, 210, 160, 0.45)"
+
+  // --- FRONTAL label (far left, outside brain) ---
+  const frontalLabelX = -2.5 * scaleX
+  const frontalLabelY = -0.85 * scaleY
+  const frontalTargetX = -1.2 * scaleX
+  const frontalTargetY = -0.7 * scaleY
+  ctx.font = lobeFont
+  ctx.fillStyle = lobeColor
+  ctx.textAlign = "right"
   ctx.textBaseline = "middle"
+  ctx.fillText("FRONTAL", frontalLabelX, frontalLabelY)
+  drawArrow(ctx, frontalLabelX + 8, frontalLabelY, frontalTargetX, frontalTargetY, arrowLobe)
 
-  // Lobe labels
-  ctx.font = `${Math.max(10, scale * 0.12)}px monospace`
-  ctx.fillStyle = "rgba(100, 120, 150, 0.5)"
+  // --- PARIETAL label (top, above brain) ---
+  const parietalLabelX = 0.1 * scaleX
+  const parietalLabelY = -2.0 * scaleY
+  const parietalTargetX = 0.1 * scaleX
+  const parietalTargetY = -1.45 * scaleY
+  ctx.font = lobeFont
+  ctx.fillStyle = lobeColor
+  ctx.textAlign = "center"
+  ctx.fillText("PARIETAL", parietalLabelX, parietalLabelY)
+  drawArrow(ctx, parietalLabelX, parietalLabelY + 8, parietalTargetX, parietalTargetY, arrowLobe)
 
-  ctx.fillText("FRONTAL", -1.2 * scaleX, -0.7 * scaleY)
-  ctx.fillText("PARIETAL", 0.1 * scaleX, -1.2 * scaleY)
-  ctx.fillText("TEMPORAL", -0.5 * scaleX, 0.65 * scaleY)
+  // --- TEMPORAL label (below brain) ---
+  const temporalLabelX = -0.5 * scaleX
+  const temporalLabelY = 1.35 * scaleY
+  const temporalTargetX = -0.5 * scaleX
+  const temporalTargetY = 0.8 * scaleY
+  ctx.font = lobeFont
+  ctx.fillStyle = lobeColor
+  ctx.textAlign = "center"
+  ctx.fillText("TEMPORAL", temporalLabelX, temporalLabelY)
+  drawArrow(ctx, temporalLabelX, temporalLabelY - 8, temporalTargetX, temporalTargetY, arrowLobe)
 
-  // V1 label
-  ctx.font = `bold ${Math.max(12, scale * 0.16)}px monospace`
-  ctx.fillStyle = "rgba(0, 210, 160, 0.9)"
-  ctx.fillText("V1", 1.25 * scaleX, -0.0 * scaleY)
+  // --- V1 label (far right, outside brain) ---
+  const v1LabelX = 2.45 * scaleX
+  const v1LabelY = 0.0 * scaleY
+  const v1TargetX = 1.5 * scaleX
+  const v1TargetY = 0.0 * scaleY
+  ctx.font = v1Font
+  ctx.fillStyle = v1Color
+  ctx.textAlign = "left"
+  ctx.fillText("V1", v1LabelX, v1LabelY)
+  drawArrow(ctx, v1LabelX - 4, v1LabelY, v1TargetX, v1TargetY, arrowV1)
 
-  // Dorsal / Ventral
-  ctx.font = `${Math.max(9, scale * 0.09)}px monospace`
-  ctx.fillStyle = "rgba(0, 210, 160, 0.6)"
-  ctx.fillText("dorsal (lower field)", 1.25 * scaleX, -0.55 * scaleY)
-  ctx.fillText("ventral (upper field)", 1.25 * scaleX, 0.55 * scaleY)
-
-  // Posterior / Anterior
+  // --- Dorsal label (upper right, outside) ---
+  const dorsalLabelX = 2.45 * scaleX
+  const dorsalLabelY = -0.7 * scaleY
+  const dorsalTargetX = 1.3 * scaleX
+  const dorsalTargetY = -0.5 * scaleY
+  ctx.font = detailFont
+  ctx.fillStyle = detailColor
+  ctx.textAlign = "left"
+  ctx.fillText("dorsal", dorsalLabelX, dorsalLabelY)
   ctx.font = `${Math.max(8, scale * 0.08)}px monospace`
   ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
-  ctx.fillText("fovea", 1.82 * scaleX, -0.2 * scaleY)
-  ctx.fillText("periphery", 0.5 * scaleX, -0.2 * scaleY)
+  ctx.fillText("(lower visual field)", dorsalLabelX, dorsalLabelY + scale * 0.14)
+  drawArrow(ctx, dorsalLabelX - 4, dorsalLabelY, dorsalTargetX, dorsalTargetY, arrowV1)
 
-  // Fovea dot
+  // --- Ventral label (lower right, outside) ---
+  const ventralLabelX = 2.45 * scaleX
+  const ventralLabelY = 0.7 * scaleY
+  const ventralTargetX = 1.3 * scaleX
+  const ventralTargetY = 0.5 * scaleY
+  ctx.font = detailFont
+  ctx.fillStyle = detailColor
+  ctx.textAlign = "left"
+  ctx.fillText("ventral", ventralLabelX, ventralLabelY)
+  ctx.font = `${Math.max(8, scale * 0.08)}px monospace`
+  ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
+  ctx.fillText("(upper visual field)", ventralLabelX, ventralLabelY + scale * 0.14)
+  drawArrow(ctx, ventralLabelX - 4, ventralLabelY, ventralTargetX, ventralTargetY, arrowV1)
+
+  // --- Fovea label (far right, near posterior pole) ---
+  const foveaLabelX = 2.45 * scaleX
+  const foveaLabelY = -0.25 * scaleY
+  const foveaTargetX = 1.82 * scaleX
+  const foveaTargetY = 0.0 * scaleY
+  ctx.font = detailFont
+  ctx.fillStyle = detailColor
+  ctx.textAlign = "left"
+  ctx.fillText("fovea", foveaLabelX, foveaLabelY)
+  drawArrow(ctx, foveaLabelX - 4, foveaLabelY, foveaTargetX, foveaTargetY, arrowV1)
+
+  // Fovea dot on the brain
   ctx.beginPath()
   ctx.arc(1.82 * scaleX, 0.0 * scaleY, 4, 0, Math.PI * 2)
   ctx.fillStyle = "rgba(255, 255, 255, 0.9)"
@@ -326,6 +445,17 @@ function drawLabels(
   ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"
   ctx.lineWidth = 1.5
   ctx.stroke()
+
+  // --- Periphery label (left side of V1) ---
+  const periphLabelX = -0.1 * scaleX
+  const periphLabelY = 0.0 * scaleY
+  const periphTargetX = 0.65 * scaleX
+  const periphTargetY = -0.02 * scaleY
+  ctx.font = detailFont
+  ctx.fillStyle = detailColor
+  ctx.textAlign = "right"
+  ctx.fillText("periphery", periphLabelX, periphLabelY)
+  drawArrow(ctx, periphLabelX + 8, periphLabelY, periphTargetX, periphTargetY, arrowV1)
 
   ctx.restore()
 }
