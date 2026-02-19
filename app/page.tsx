@@ -72,7 +72,7 @@ export default function Page() {
                       : "bg-secondary text-muted-foreground hover:bg-border hover:text-foreground"
                   }`}
                 >
-                  {size}
+                  {size}x{size}
                 </button>
               ))}
             </div>
