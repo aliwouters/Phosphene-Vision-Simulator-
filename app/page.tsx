@@ -57,7 +57,7 @@ export default function Page() {
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1.5">
             <label className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
-              Grid
+              Grid Sizes
             </label>
             <div className="flex gap-1" role="radiogroup" aria-label="Grid size">
               {GRID_SIZES.map((size) => (

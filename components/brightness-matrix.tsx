@@ -34,8 +34,9 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
     if (totalCells <= 64) return "text-xs"
     if (totalCells <= 144) return "text-[10px]"
     if (totalCells <= 256) return "text-[8px]"
-    if (totalCells <= 400) return "text-[6px]"
-    return "text-[5px]"
+    if (totalCells <= 600) return "text-[6px]"
+    if (totalCells <= 1024) return "text-[4px]"
+    return "text-[3px]"
   }
 
   return (
@@ -66,7 +67,7 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
                       backgroundColor: getCellBg(value),
                     }}
                   >
-                    {totalCells <= 400 ? value : ""}
+                    {value}
                   </div>
                 ))
               )
@@ -76,14 +77,14 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
                   className={`flex items-center justify-center font-mono ${getFontSize()} leading-none text-muted-foreground rounded-[1px]`}
                   style={{ backgroundColor: "oklch(0.15 0.005 260)" }}
                 >
-                  {totalCells <= 400 ? "--" : ""}
+                  --
                 </div>
               ))}
         </div>
       </div>
       <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
-        <span>2 = dark</span>
-        <span>77 = bright</span>
+        <span>{'2\u00A0\u03BCA = dark'}</span>
+        <span>{'77\u00A0\u03BCA = bright'}</span>
       </div>
     </div>
   )
