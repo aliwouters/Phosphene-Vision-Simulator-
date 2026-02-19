@@ -332,9 +332,11 @@ function drawLabels(
 
 export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [rotY, setRotY] = useState(-0.15)
-  const [rotX, setRotX] = useState(0)
+  const [panX, setPanX] = useState(0)
+  const [panY, setPanY] = useState(0)
   const [zoom, setZoom] = useState(1.0)
+  const rotY = -0.15
+  const rotX = 0
   const isDragging = useRef(false)
   const lastMouse = useRef({ x: 0, y: 0 })
 
@@ -347,8 +349,8 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
     if (!isDragging.current) return
     const dx = e.clientX - lastMouse.current.x
     const dy = e.clientY - lastMouse.current.y
-    setRotY((prev) => prev + dx * 0.008)
-    setRotX((prev) => Math.max(-0.6, Math.min(0.6, prev + dy * 0.008)))
+    setPanX((prev) => prev + dx)
+    setPanY((prev) => prev + dy)
     lastMouse.current = { x: e.clientX, y: e.clientY }
   }, [])
 
@@ -358,7 +360,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    setZoom((prev) => Math.max(0.5, Math.min(2.5, prev - e.deltaY * 0.001)))
+    setZoom((prev) => Math.max(0.5, Math.min(3.0, prev - e.deltaY * 0.001)))
   }, [])
 
   // Touch support
@@ -373,8 +375,8 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
     if (!isDragging.current || e.touches.length !== 1) return
     const dx = e.touches[0].clientX - lastMouse.current.x
     const dy = e.touches[0].clientY - lastMouse.current.y
-    setRotY((prev) => prev + dx * 0.008)
-    setRotX((prev) => Math.max(-0.6, Math.min(0.6, prev + dy * 0.008)))
+    setPanX((prev) => prev + dx)
+    setPanY((prev) => prev + dy)
     lastMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
   }, [])
 
@@ -402,8 +404,8 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
     ctx.fillStyle = "#060810"
     ctx.fillRect(0, 0, width, height)
 
-    const centerX = width * 0.48
-    const centerY = height * 0.48
+    const centerX = width * 0.48 + panX
+    const centerY = height * 0.48 + panY
     const baseScale = Math.min(width, height) * 0.28 * zoom
 
     // Draw brain outline fill
@@ -491,7 +493,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
 
     // Draw labels
     drawLabels(ctx, centerX, centerY, baseScale, rotY, rotX)
-  }, [matrix, gridSize, rotY, rotX, zoom])
+  }, [matrix, gridSize, rotY, rotX, zoom, panX, panY])
 
   return (
     <div className="flex flex-col gap-3">
@@ -515,7 +517,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
           onTouchEnd={handleTouchEnd}
         />
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-background/70 px-2 py-1 font-mono text-[10px] text-muted-foreground">
-          drag to rotate / scroll to zoom
+          drag to move / scroll to zoom
         </div>
       </div>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">

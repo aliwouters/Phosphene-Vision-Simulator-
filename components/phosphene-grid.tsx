@@ -38,38 +38,21 @@ export function PhospheneGrid({ matrix, gridSize }: PhospheneGridProps) {
         if (!matrix[row] || matrix[row][col] === undefined) continue
 
         const value = matrix[row][col]
-        const linear = (value - 2) / 75
-        // Steep power curve: darks nearly vanish, brights punch hard
-        const normalized = Math.pow(linear, 2.2)
+        const normalized = (value - 2) / 75
 
         const cx = col * cellW + cellW / 2
         const cy = row * cellH + cellH / 2
-        // Tiny dots for dark values, full-size for bright
-        const radius = maxRadius * (0.1 + normalized * 0.9)
-        // Outer glow radius extends further for bright dots
-        const glowRadius = radius * (1.0 + normalized * 1.5)
+        const radius = maxRadius * (0.3 + normalized * 0.7)
 
-        // Color: shift from dim blue-grey to hot white
-        const intensity = Math.round(normalized * 255)
-        const glowR = Math.min(255, Math.round(intensity * 0.7 + normalized * 80))
-        const glowG = Math.min(255, intensity)
-        const glowB = Math.min(255, Math.round(intensity * 0.85 + normalized * 40))
-
-        // Outer soft glow (only visible on brighter dots)
-        if (normalized > 0.05) {
-          const outerGlow = ctx.createRadialGradient(cx, cy, radius * 0.5, cx, cy, glowRadius)
-          outerGlow.addColorStop(0, `rgba(${glowR}, ${glowG}, ${glowB}, ${normalized * 0.3})`)
-          outerGlow.addColorStop(1, `rgba(${glowR}, ${glowG}, ${glowB}, 0)`)
-          ctx.beginPath()
-          ctx.arc(cx, cy, glowRadius, 0, Math.PI * 2)
-          ctx.fillStyle = outerGlow
-          ctx.fill()
-        }
-
-        // Main dot body
         const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
-        gradient.addColorStop(0, `rgba(${glowR}, ${glowG}, ${glowB}, ${normalized * 1.0})`)
-        gradient.addColorStop(0.5, `rgba(${glowR}, ${glowG}, ${glowB}, ${normalized * 0.6})`)
+
+        const intensity = Math.round(normalized * 255)
+        const glowR = Math.round(intensity * 0.85)
+        const glowG = intensity
+        const glowB = Math.round(intensity * 0.9)
+
+        gradient.addColorStop(0, `rgba(${glowR}, ${glowG}, ${glowB}, ${0.3 + normalized * 0.7})`)
+        gradient.addColorStop(0.4, `rgba(${glowR}, ${glowG}, ${glowB}, ${0.15 + normalized * 0.4})`)
         gradient.addColorStop(1, `rgba(${glowR}, ${glowG}, ${glowB}, 0)`)
 
         ctx.beginPath()
@@ -77,13 +60,10 @@ export function PhospheneGrid({ matrix, gridSize }: PhospheneGridProps) {
         ctx.fillStyle = gradient
         ctx.fill()
 
-        // Hot white core for bright values
-        if (normalized > 0.15) {
-          const coreRadius = radius * 0.35
+        if (normalized > 0.3) {
+          const coreRadius = radius * 0.25
           const coreGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreRadius)
-          const coreAlpha = Math.min(1.0, normalized * 1.2)
-          coreGradient.addColorStop(0, `rgba(255, 255, 255, ${coreAlpha})`)
-          coreGradient.addColorStop(0.5, `rgba(255, 255, 255, ${coreAlpha * 0.4})`)
+          coreGradient.addColorStop(0, `rgba(255, 255, 255, ${normalized * 0.6})`)
           coreGradient.addColorStop(1, `rgba(${glowR}, ${glowG}, ${glowB}, 0)`)
           ctx.beginPath()
           ctx.arc(cx, cy, coreRadius, 0, Math.PI * 2)
