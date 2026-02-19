@@ -50,9 +50,7 @@ export default function Page() {
           <h1 className="text-xl font-mono font-semibold tracking-tight text-foreground lg:text-2xl">
             Phosphene Vision Simulator
           </h1>
-          <p className="mt-1 font-mono text-xs text-muted-foreground lg:text-sm">
-            Real-time camera brightness to phosphene map visualization
-          </p>
+
         </div>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1.5">
