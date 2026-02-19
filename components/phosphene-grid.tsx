@@ -4,10 +4,11 @@ import { useRef, useEffect } from "react"
 
 interface PhospheneGridProps {
   matrix: number[][]
-  gridSize: number
+  gridRows: number
+  gridCols: number
 }
 
-export function PhospheneGrid({ matrix, gridSize }: PhospheneGridProps) {
+export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -29,12 +30,12 @@ export function PhospheneGrid({ matrix, gridSize }: PhospheneGridProps) {
     ctx.fillStyle = "#080a0f"
     ctx.fillRect(0, 0, width, height)
 
-    const cellW = width / gridSize
-    const cellH = height / gridSize
+    const cellW = width / gridCols
+    const cellH = height / gridRows
     const maxRadius = Math.min(cellW, cellH) * 0.4
 
-    for (let row = 0; row < gridSize; row++) {
-      for (let col = 0; col < gridSize; col++) {
+    for (let row = 0; row < gridRows; row++) {
+      for (let col = 0; col < gridCols; col++) {
         if (!matrix[row] || matrix[row][col] === undefined) continue
 
         const value = matrix[row][col]
@@ -72,7 +73,7 @@ export function PhospheneGrid({ matrix, gridSize }: PhospheneGridProps) {
         }
       }
     }
-  }, [matrix, gridSize])
+  }, [matrix, gridRows, gridCols])
 
   return (
     <div className="flex flex-col gap-3">

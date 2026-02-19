@@ -3,11 +3,12 @@
 import { useEffect, useRef, useCallback } from "react"
 
 interface CameraFeedProps {
-  gridSize: number
+  gridRows: number
+  gridCols: number
   onMatrixUpdate: (matrix: number[][]) => void
 }
 
-export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
+export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -37,13 +38,13 @@ export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
 
     ctx.drawImage(video, 0, 0)
 
-    const cellW = video.videoWidth / gridSize
-    const cellH = video.videoHeight / gridSize
+    const cellW = video.videoWidth / gridCols
+    const cellH = video.videoHeight / gridRows
     const matrix: number[][] = []
 
-    for (let row = 0; row < gridSize; row++) {
+    for (let row = 0; row < gridRows; row++) {
       const rowValues: number[] = []
-      for (let col = 0; col < gridSize; col++) {
+      for (let col = 0; col < gridCols; col++) {
         const x = Math.floor(col * cellW)
         const y = Math.floor(row * cellH)
         const w = Math.floor(cellW)
@@ -69,7 +70,7 @@ export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
     overlayCtx.strokeStyle = "rgba(0, 210, 160, 0.25)"
     overlayCtx.lineWidth = 1
 
-    for (let i = 1; i < gridSize; i++) {
+    for (let i = 1; i < gridCols; i++) {
       const x = Math.floor(i * cellW)
       overlayCtx.beginPath()
       overlayCtx.moveTo(x, 0)
@@ -77,7 +78,7 @@ export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
       overlayCtx.stroke()
     }
 
-    for (let i = 1; i < gridSize; i++) {
+    for (let i = 1; i < gridRows; i++) {
       const y = Math.floor(i * cellH)
       overlayCtx.beginPath()
       overlayCtx.moveTo(0, y)
@@ -87,7 +88,7 @@ export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
 
     onMatrixUpdate(matrix)
     animationRef.current = requestAnimationFrame(processFrame)
-  }, [gridSize, onMatrixUpdate])
+  }, [gridRows, gridCols, onMatrixUpdate])
 
   useEffect(() => {
     async function startCamera() {
@@ -156,7 +157,7 @@ export function CameraFeed({ gridSize, onMatrixUpdate }: CameraFeedProps) {
           className="absolute inset-0 h-full w-full object-cover pointer-events-none"
         />
         <div className="absolute bottom-2 left-2 rounded bg-background/80 px-2 py-1 font-mono text-xs text-muted-foreground">
-          {gridSize}x{gridSize} grid
+          {gridRows}x{gridCols} grid
         </div>
       </div>
     </div>

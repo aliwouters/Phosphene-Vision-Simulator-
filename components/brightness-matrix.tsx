@@ -2,23 +2,21 @@
 
 interface BrightnessMatrixProps {
   matrix: number[][]
-  gridSize: number
+  gridRows: number
+  gridCols: number
 }
 
-export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
+export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatrixProps) {
   const getColor = (value: number) => {
     const normalized = (value - 2) / 75
-    // Apply a power curve for more visual contrast between dark and bright
     const curved = Math.pow(normalized, 0.6)
     const lightness = 0.12 + curved * 0.88
 
     if (normalized > 0.6) {
-      // Bright values get a strong teal tint
       const chroma = 0.08 + (normalized - 0.6) * 0.3
       return `oklch(${lightness} ${chroma} 165)`
     }
     if (normalized < 0.2) {
-      // Dark values get a subtle blue tint
       return `oklch(${lightness} 0.03 260)`
     }
     return `oklch(${lightness} 0.02 200)`
@@ -26,17 +24,18 @@ export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
 
   const getCellBg = (value: number) => {
     const normalized = (value - 2) / 75
-    // Subtle background glow for brighter cells
     const bgLight = 0.12 + normalized * 0.06
     const bgChroma = normalized > 0.5 ? 0.01 + normalized * 0.02 : 0.005
     return `oklch(${bgLight} ${bgChroma} 200)`
   }
 
+  const totalCells = gridRows * gridCols
   const getFontSize = () => {
-    if (gridSize <= 8) return "text-xs"
-    if (gridSize <= 12) return "text-[10px]"
-    if (gridSize <= 16) return "text-[8px]"
-    return "text-[6px]"
+    if (totalCells <= 64) return "text-xs"
+    if (totalCells <= 144) return "text-[10px]"
+    if (totalCells <= 256) return "text-[8px]"
+    if (totalCells <= 400) return "text-[6px]"
+    return "text-[5px]"
   }
 
   return (
@@ -51,9 +50,9 @@ export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
         <div
           className="grid h-full w-full"
           style={{
-            gridTemplateColumns: `repeat(${gridSize}, 1fr)`,
-            gridTemplateRows: `repeat(${gridSize}, 1fr)`,
-            gap: "1px",
+            gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+            gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+            gap: totalCells > 400 ? "0px" : "1px",
           }}
         >
           {matrix.length > 0
@@ -67,17 +66,17 @@ export function BrightnessMatrix({ matrix, gridSize }: BrightnessMatrixProps) {
                       backgroundColor: getCellBg(value),
                     }}
                   >
-                    {value}
+                    {totalCells <= 400 ? value : ""}
                   </div>
                 ))
               )
-            : Array.from({ length: gridSize * gridSize }).map((_, i) => (
+            : Array.from({ length: totalCells }).map((_, i) => (
                 <div
                   key={i}
                   className={`flex items-center justify-center font-mono ${getFontSize()} leading-none text-muted-foreground rounded-[1px]`}
                   style={{ backgroundColor: "oklch(0.15 0.005 260)" }}
                 >
-                  --
+                  {totalCells <= 400 ? "--" : ""}
                 </div>
               ))}
         </div>

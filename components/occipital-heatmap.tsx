@@ -4,7 +4,8 @@ import { useRef, useEffect, useState, useCallback } from "react"
 
 interface OccipitalHeatmapProps {
   matrix: number[][]
-  gridSize: number
+  gridRows: number
+  gridCols: number
 }
 
 function heatColor(t: number): [number, number, number] {
@@ -460,7 +461,7 @@ function drawLabels(
   ctx.restore()
 }
 
-export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
+export function OccipitalHeatmap({ matrix, gridRows, gridCols }: OccipitalHeatmapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [panX, setPanX] = useState(0)
   const [panY, setPanY] = useState(0)
@@ -560,7 +561,8 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
       ctx.clip()
 
       const bounds = getV1Bounds(centerX, centerY, baseScale, rotY, rotX)
-      const halfGrid = gridSize / 2
+      const halfRows = gridRows / 2
+      const halfCols = gridCols / 2
 
       // Render heatmap pixels within the V1 region
       const pixelSize = 3
@@ -574,7 +576,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
           const logScale = 0.4
           const eccentricity =
             (Math.exp((1 - u) / logScale) - 1) / (Math.exp(1 / logScale) - 1)
-          const maxEcc = halfGrid * Math.sqrt(2)
+          const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
           const ecc = eccentricity * maxEcc
 
           // v maps dorsal->ventral (lower->upper visual field)
@@ -583,18 +585,18 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
           const visualX = ecc * Math.cos(angle)
           const visualY = ecc * Math.sin(angle)
 
-          const gridCol = Math.floor(halfGrid + visualX)
-          const gridRow = Math.floor(halfGrid - visualY)
+          const gCol = Math.floor(halfCols + visualX)
+          const gRow = Math.floor(halfRows - visualY)
 
           if (
-            gridRow >= 0 &&
-            gridRow < gridSize &&
-            gridCol >= 0 &&
-            gridCol < gridSize &&
-            matrix[gridRow] &&
-            matrix[gridRow][gridCol] !== undefined
+            gRow >= 0 &&
+            gRow < gridRows &&
+            gCol >= 0 &&
+            gCol < gridCols &&
+            matrix[gRow] &&
+            matrix[gRow][gCol] !== undefined
           ) {
-            const value = matrix[gridRow][gridCol]
+            const value = matrix[gRow][gCol]
             const normalized = (value - 2) / 75
             const [r, g, b] = heatColor(normalized)
             ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
@@ -623,7 +625,7 @@ export function OccipitalHeatmap({ matrix, gridSize }: OccipitalHeatmapProps) {
 
     // Draw labels
     drawLabels(ctx, centerX, centerY, baseScale, rotY, rotX)
-  }, [matrix, gridSize, rotY, rotX, zoom, panX, panY])
+  }, [matrix, gridRows, gridCols, rotY, rotX, zoom, panX, panY])
 
   return (
     <div className="flex flex-col gap-3">
