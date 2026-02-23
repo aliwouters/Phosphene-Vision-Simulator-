@@ -22,8 +22,8 @@ const DEVICE_PRESETS: DevicePreset[] = [
 ]
 
 export default function Page() {
-  const [gridRows, setGridRows] = useState(16)
-  const [gridCols, setGridCols] = useState(16)
+  const [gridRows, setGridRows] = useState(32)
+  const [gridCols, setGridCols] = useState(32)
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [matrix, setMatrix] = useState<number[][]>([])
 
