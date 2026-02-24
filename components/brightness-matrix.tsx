@@ -92,7 +92,7 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
         <p>
           Each cell corresponds to the stimulation current delivered by a single
           electrode. Direct stimulation of neurons in V1 typically operates
-          between <strong className="text-foreground">2 and 77 microamps</strong> ({'\u03BCA'}):
+          between 2 and 77 microamps ({'\u03BCA'}):
           lower currents evoke faint phosphenes, while higher currents produce brighter
           ones. The matrix maps the average luminance of each camera region to a matching
           current level, transforming the visual scene into an electrical stimulation
