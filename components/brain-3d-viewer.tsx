@@ -307,12 +307,14 @@ export function OccipitalHeatmap3D({
         const xDelta = x - v1X // positive = right cortex
         const corticalAngle = Math.atan2(yDelta, xDelta)
 
-        // Map cortex -> visual field (INVERTED + MIRROR-REVERSED)
-        // Negate both axes: dorsal cortex -> lower field (high row), left cortex -> right field (high col)
-        const visualX = -ecc * Math.cos(corticalAngle) // mirror left-right
-        const visualY = -ecc * Math.sin(corticalAngle) // invert up-down
+        // Map cortex -> visual field -> camera grid (un-mirrored matrix, CSS-mirrored display)
+        // The matrix is un-mirrored: col=0 = right side of real world
+        // Contralateral: left cortex (xDelta<0) -> right visual field -> LOW col in matrix
+        //   (CSS mirror will flip it to appear on screen-right = correct)
+        // Inversion: dorsal cortex (yDelta>0) -> lower visual field -> HIGH row in matrix
+        const visualX = ecc * Math.cos(corticalAngle)  // left cortex -> low col (contralateral via CSS mirror)
+        const visualY = -ecc * Math.sin(corticalAngle) // dorsal -> high row (inverted)
 
-        // Visual field center = grid center
         const gCol = Math.floor(halfCols + visualX)
         const gRow = Math.floor(halfRows + visualY)
 
@@ -442,12 +444,16 @@ export function OccipitalHeatmap3D({
         const eccU = (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1)
         const eccV = (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1)
 
-        // Apply inversion + mirror to get visual field -> camera grid position:
-        // Cortical left (u<0) -> right visual field -> RIGHT side of camera (high col)
-        // Cortical right (u>0) -> left visual field -> LEFT side of camera (low col)
-        const gCol = Math.floor(cols / 2 - eccU * (cols / 2) * Math.sign(u))
-        // Cortical dorsal (v<0, top) -> lower visual field -> BOTTOM of camera (high row)
-        // Cortical ventral (v>0, bottom) -> upper visual field -> TOP of camera (low row)
+        // Retinotopic inversion + mirror (Horton & Hoyt 1991)
+        // Camera is mirrored (selfie), so the matrix col=0 is the RIGHT side of the real world
+        // After CSS mirror: user's left appears on screen-left = high col in matrix
+        //
+        // Cortical left (u<0) -> RIGHT visual field -> in un-mirrored matrix = LOW col
+        //   but displayed mirrored, so it appears on the user's RIGHT (correct contralateral)
+        // Cortical right (u>0) -> LEFT visual field -> in un-mirrored matrix = HIGH col
+        const gCol = Math.floor(cols / 2 + eccU * (cols / 2) * Math.sign(u))
+        // Cortical dorsal (v<0, top) -> LOWER visual field -> BOTTOM of camera (HIGH row)
+        // Cortical ventral (v>0, bottom) -> UPPER visual field -> TOP of camera (LOW row)
         const gRow = Math.floor(rows / 2 - eccV * (rows / 2) * Math.sign(v))
 
         if (

@@ -36,11 +36,7 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
     overlayCanvas.width = video.videoWidth
     overlayCanvas.height = video.videoHeight
 
-    // Mirror the camera feed horizontally (selfie mode)
-    ctx.save()
-    ctx.scale(-1, 1)
-    ctx.drawImage(video, -video.videoWidth, 0)
-    ctx.restore()
+    ctx.drawImage(video, 0, 0)
 
     const cellW = video.videoWidth / gridCols
     const cellH = video.videoHeight / gridRows

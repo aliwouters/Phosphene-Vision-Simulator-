@@ -86,7 +86,7 @@ export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps
       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#080a0f]">
         <canvas
           ref={canvasRef}
-          className="h-full w-full"
+          className="h-full w-full -scale-x-100"
           style={{ imageRendering: "auto" }}
         />
       </div>

@@ -49,7 +49,7 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
       </div>
       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-secondary p-1">
         <div
-          className="grid h-full w-full"
+          className="grid h-full w-full -scale-x-100"
           style={{
             gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
             gridTemplateRows: `repeat(${gridRows}, 1fr)`,
