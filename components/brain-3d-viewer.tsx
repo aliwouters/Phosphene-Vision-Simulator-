@@ -252,12 +252,15 @@ export function OccipitalHeatmap3D({
     const halfRows = gRows / 2
     const halfCols = gCols / 2
 
-    // V1 center in original model coordinates
-    const v1X = -66.89
-    const v1Y = 8.88
-    const v1Z = -6.95
-    const v1Radius = 30.0
-    const fadeStart = 22.0
+    // V1 center at the occipital pole (posterior end of the brain)
+    // Model bounds: x[-76,59], y[-56,79], z[-87,85]
+    // The occipital pole is at the most posterior (most negative z) region,
+    // centered medially (x ~ -8, the midpoint), and mid-height (y ~ 11)
+    const v1X = -8.0
+    const v1Y = 15.0
+    const v1Z = -75.0
+    const v1Radius = 35.0
+    const fadeStart = 25.0
 
     const colors = colorAttr.array
 
@@ -330,19 +333,31 @@ export function OccipitalHeatmap3D({
       mesh.material.needsUpdate = true
     }
 
-    // Request a re-render from model-viewer
+    // Force model-viewer to re-render
     const mv = mvRef.current
     if (mv) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const symbols = Object.getOwnPropertySymbols(mv as any)
+      const mvAny = mv as any
+
+      // Try multiple approaches to force a re-render
+      // 1) The internal needsRender symbol
+      const symbols = Object.getOwnPropertySymbols(mvAny)
       const needsRenderSym = symbols.find((s) => s.description === "needsRender")
-      if (needsRenderSym) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mv as any)[needsRenderSym]()
+      if (needsRenderSym) mvAny[needsRenderSym]()
+
+      // 2) The scene's renderer directly
+      const rendererSym = symbols.find((s) => s.description === "renderer")
+      if (rendererSym && mvAny[rendererSym]) {
+        const renderer = mvAny[rendererSym]
+        if (renderer.threeRenderer) renderer.threeRenderer.render?.(renderer.scene, renderer.camera)
       }
-      // Also try the public API
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((mv as any).requestUpdate) (mv as any).requestUpdate()
+
+      // 3) Nudge the exposure to force a dirty flag
+      const currentExposure = mvAny.exposure || 0.6
+      mvAny.exposure = currentExposure + 0.0001
+      requestAnimationFrame(() => {
+        mvAny.exposure = currentExposure
+      })
     }
   }, [])
 
@@ -351,12 +366,20 @@ export function OccipitalHeatmap3D({
     paintV1Heatmap()
   }, [matrix, gridRows, gridCols, paintV1Heatmap])
 
-  // Set up interval to keep repainting (since model-viewer manages its own render loop)
+  // Use requestAnimationFrame for continuous live updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      paintV1Heatmap()
-    }, 100) // 10 fps update for the heatmap
-    return () => clearInterval(interval)
+    let animId: number
+    let lastTime = 0
+    const loop = (time: number) => {
+      // Throttle to ~15fps to keep performance reasonable with 2M vertices
+      if (time - lastTime > 66) {
+        paintV1Heatmap()
+        lastTime = time
+      }
+      animId = requestAnimationFrame(loop)
+    }
+    animId = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
   // Attach load event to model-viewer element
@@ -401,8 +424,8 @@ export function OccipitalHeatmap3D({
             tone-mapping="neutral"
             exposure="0.6"
             shadow-intensity="0"
-            camera-target="-66.89m 8.88m -6.95m"
-            camera-orbit="180deg 90deg 200m"
+            camera-target="-8m 15m -75m"
+            camera-orbit="0deg 90deg 150m"
             min-camera-orbit="auto auto 10m"
             max-camera-orbit="auto auto 2000m"
             min-field-of-view="5deg"
