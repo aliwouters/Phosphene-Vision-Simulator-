@@ -46,7 +46,7 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-primary" />
         <h2 className="text-sm font-mono font-medium tracking-wider uppercase text-primary">
-          Brightness Matrix
+          Amplitude Matrix
         </h2>
       </div>
       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-secondary p-1">
@@ -90,13 +90,13 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
       </div>
       <LearnMore>
         <p>
-          Each cell represents the stimulation current delivered by one electrode.
-          Direct brain stimulation of V1 neurons operates
+          Each cell corresponds to the stimulation current delivered by a single
+          electrode. Direct stimulation of neurons in V1 typically operates
           between <strong className="text-foreground">2 and 77 microamps</strong> ({'\u03BCA'}):
-          lower currents produce faint phosphenes, higher currents produce brighter
-          ones. The matrix encodes the average luminance of each camera region into a
-          corresponding amperage, converting a visual scene into an electrical
-          stimulation pattern the brain can interpret.
+          lower currents evoke faint phosphenes, while higher currents produce brighter
+          ones. The matrix maps the average luminance of each camera region to a matching
+          current level, transforming the visual scene into an electrical stimulation
+          pattern the brain can interpret.
         </p>
       </LearnMore>
     </div>

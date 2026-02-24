@@ -157,18 +157,16 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
           ref={overlayCanvasRef}
           className="absolute inset-0 h-full w-full object-cover -scale-x-100 pointer-events-none"
         />
-        <div className="absolute bottom-2 left-2 rounded bg-background/80 px-2 py-1 font-mono text-xs text-muted-foreground">
-          {gridRows}x{gridCols} grid
-        </div>
+      </div>
+      <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
+        <span>{gridRows}x{gridCols} grid</span>
       </div>
       <LearnMore>
         <p>
-          A miniature camera embedded in a pair of glasses records the visual scene
-          in real time, acting as a substitute for the biological eye. An external
-          processor downsamples the video into a grid of brightness values that matches
-          the resolution of the implanted electrode array. This is the first stage of
-          the prosthesis pipeline: translating the outside world into a digital signal
-          the brain can interpret.
+          A tiny camera built into a pair of glasses captures the visual scene in
+          real time, effectively replacing the function of the natural eye. An external
+          processor then reduces the video into a grid of brightness values that aligns
+          with the resolution of the implanted electrode array.
         </p>
       </LearnMore>
     </div>

@@ -540,7 +540,7 @@ export function OccipitalHeatmap3D({
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-primary" />
         <h2 className="font-mono text-sm font-medium uppercase tracking-wider text-primary">
-          Occipital Cortex Map (3D)
+          Occipital Cortex Map
         </h2>
       </div>
       <div
@@ -605,39 +605,45 @@ export function OccipitalHeatmap3D({
   <span className="text-[10px]">high stimulus</span>
   </div>
   <LearnMore>
-    <p className="mb-2 font-medium text-foreground text-[11px]">How the Code Maps the Image</p>
     <p className="mb-1.5">
-      The simulator takes each vertex on the 3D brain model and determines which
-      pixel in the camera grid it should sample from. It does this by replicating
-      three transformations from the human visual pathway:
+      This heat map estimates where stimulation occurs on the brain and how strong
+      it must be to produce the resulting phosphene map.
+    </p>
+    <p className="mb-2 font-medium text-foreground text-[11px]">How the image is mapped to the cortex</p>
+    <p className="mb-1.5">
+      The simulator assigns each vertex on the 3D brain model a pixel from the
+      camera grid. It does this by reproducing three key transformations found in
+      the human visual pathway:
     </p>
     <p className="mb-2 font-medium text-foreground text-[11px]">1. Contralateral Flip</p>
     <p className="mb-1.5">
       Vertices on the left cortex sample from the right side of the camera grid,
-      and vice versa. This replicates the optic chiasm, where nasal retinal fibers
-      cross hemispheres so each side of V1 processes the opposite visual field.
+      and vice versa. This mirrors the optic chiasm, where nasal retinal fibers
+      cross hemispheres so each side of V1 represents the opposite visual field.
     </p>
     <p className="mb-2 font-medium text-foreground text-[11px]">2. Vertical Inversion</p>
     <p className="mb-1.5">
       Vertices above the calcarine sulcus (dorsal V1) sample from the bottom of
-      the camera grid (lower visual field), and vertices below it (ventral V1) sample
-      from the top (upper visual field). This replicates the parietal and temporal
-      optic radiation pathways.
+      the camera grid, corresponding to the lower visual field. Vertices below it
+      (ventral V1) sample from the top, corresponding to the upper visual field.
+      This reflects the organization of the parietal and temporal optic radiation
+      pathways.
     </p>
     <p className="mb-2 font-medium text-foreground text-[11px]">3. Log-Polar Scaling</p>
     <p className="mb-1.5">
       Vertices near the occipital pole (posterior tip) map to the center of the
-      camera grid (fovea), while vertices further anterior map to the edges
-      (periphery). The mapping uses an exponential function so the foveal region
-      is over-represented, matching how the real cortex dedicates ~50% of V1
-      surface area to the central 10{'\u00B0'} of vision.
+      camera grid, representing the fovea, while more anterior vertices map toward
+      the edges, representing the periphery. The mapping uses an exponential
+      function so the fovea is overrepresented, matching the real cortex where
+      roughly half of V1 surface area is devoted to the central 10{'\u00B0'} of vision.
     </p>
     <p className="mb-2 font-medium text-foreground text-[11px]">The Heatmap</p>
     <p>
-      Each vertex is colored by its sampled stimulation current: blue for low
-      (~2 {'\u03BCA'}), red/yellow for moderate, white for maximum (~77 {'\u03BCA'}).
-      Grey vertices fall outside V1 and receive no stimulation. The 2D inset
-      shows the same mapping as a flat cortical surface with fovea at center.
+      Each vertex is colored based on its sampled stimulation current: blue for low
+      values (around 2 {'\u03BCA'}), red and yellow for moderate levels, and white
+      for the maximum (around 77 {'\u03BCA'}). Grey vertices lie outside V1 and
+      receive no stimulation. The 2D inset shows the same mapping flattened onto
+      a cortical surface, with the fovea at the center.
     </p>
   </LearnMore>
   </div>

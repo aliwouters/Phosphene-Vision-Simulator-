@@ -13,7 +13,7 @@ const OccipitalHeatmap3D = dynamic(
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-primary" />
         <h2 className="font-mono text-sm font-medium uppercase tracking-wider text-primary">
-          Occipital Cortex Map (3D)
+          Occipital Cortex Map
         </h2>
       </div>
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#060810] flex items-center justify-center">
