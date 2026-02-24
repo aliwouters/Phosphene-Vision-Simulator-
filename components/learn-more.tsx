@@ -44,11 +44,11 @@ export function LearnMore({ children }: LearnMoreProps) {
       </button>
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
-        style={{ maxHeight: open ? height : 0, opacity: open ? 1 : 0 }}
+        style={{ maxHeight: open ? height + 16 : 0, opacity: open ? 1 : 0 }}
       >
         <div
           ref={contentRef}
-          className="mt-2 rounded-md border border-border bg-card/80 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground backdrop-blur-sm"
+          className="mt-2 mb-1 rounded-md border border-border bg-card/80 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground backdrop-blur-sm"
         >
           {children}
         </div>
