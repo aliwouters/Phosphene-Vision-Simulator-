@@ -112,7 +112,7 @@ export function OccipitalHeatmap3D({
     scene.background = new THREE.Color("#060810")
 
     // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 100)
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.001, 10000)
     camera.position.set(0, 0, 2.8)
 
     // Renderer
@@ -138,8 +138,8 @@ export function OccipitalHeatmap3D({
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.08
-    controls.minDistance = 0.5
-    controls.maxDistance = 6
+    controls.minDistance = 0.01
+    controls.maxDistance = 1000
 
     // Load the brain model
     const loader = new GLTFLoader()
