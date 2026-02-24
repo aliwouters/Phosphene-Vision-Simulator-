@@ -4,7 +4,24 @@ import { useState, useCallback } from "react"
 import { CameraFeed } from "@/components/camera-feed"
 import { BrightnessMatrix } from "@/components/brightness-matrix"
 import { PhospheneGrid } from "@/components/phosphene-grid"
-import { OccipitalHeatmap } from "@/components/occipital-heatmap"
+import dynamic from "next/dynamic"
+
+const OccipitalHeatmap3D = dynamic(
+  () => import("@/components/brain-3d-viewer").then((mod) => mod.OccipitalHeatmap3D),
+  { ssr: false, loading: () => (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <div className="h-2 w-2 rounded-full bg-primary" />
+        <h2 className="font-mono text-sm font-medium uppercase tracking-wider text-primary">
+          Occipital Cortex Map (3D)
+        </h2>
+      </div>
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#060810] flex items-center justify-center">
+        <p className="font-mono text-xs text-muted-foreground animate-pulse">Loading 3D viewer...</p>
+      </div>
+    </div>
+  )}
+)
 
 const GRID_SIZES = [8, 12, 16, 24, 32]
 
@@ -107,7 +124,7 @@ export default function Page() {
         <CameraFeed gridRows={gridRows} gridCols={gridCols} onMatrixUpdate={handleMatrixUpdate} />
         <BrightnessMatrix matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
         <PhospheneGrid matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
-        <OccipitalHeatmap matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
+        <OccipitalHeatmap3D matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
       </div>
     </main>
   )

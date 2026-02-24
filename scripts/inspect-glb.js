@@ -1,6 +1,7 @@
-import { readFileSync } from 'fs';
-
-const buf = readFileSync('/vercel/share/v0-project/public/models/full_brain_binary.glb');
+const url = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/full_brain_binary-0vuQ27s7jJqBMx7FCU8Wrp1GM2X8Di.glb';
+const resp = await fetch(url);
+const arrayBuf = await resp.arrayBuffer();
+const buf = Buffer.from(arrayBuf);
 
 // GLB header: magic(4) + version(4) + length(4) + chunkLength(4) + chunkType(4) + JSON...
 const magic = buf.readUInt32LE(0);
