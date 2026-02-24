@@ -548,7 +548,7 @@ export function OccipitalHeatmap3D({
             exposure="0.6"
             shadow-intensity="0"
             camera-target="-13.08m 10.93m 81.89m"
-            camera-orbit="0deg 80deg 200m"
+            camera-orbit="0deg 80deg 300m"
             min-camera-orbit="auto auto 10m"
             max-camera-orbit="auto auto 2000m"
             min-field-of-view="5deg"
