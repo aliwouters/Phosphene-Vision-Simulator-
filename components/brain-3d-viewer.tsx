@@ -405,32 +405,96 @@ export function OccipitalHeatmap3D({
     return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
-  // Paint the 2D inset heatmap square
+  // Paint the 2D inset heatmap with V1 retinotopic mapping
+  // Log-polar: fovea (center) at posterior pole, periphery at edges
+  // Dorsal bank (top) = lower visual field, Ventral bank (bottom) = upper visual field
+  // Calcarine sulcus runs horizontally through the middle
   useEffect(() => {
     const canvas = insetCanvasRef.current
     if (!canvas || !matrix || matrix.length === 0) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const size = 70
+    const size = 60
     const rows = matrix.length
     const cols = matrix[0]?.length || 0
-    const cellW = size / cols
-    const cellH = size / rows
+    const halfRows = rows / 2
+    const halfCols = cols / 2
+    const cx = size / 2
+    const cy = size / 2
+    const maxR = size / 2 - 2
 
     ctx.fillStyle = "#060810"
     ctx.fillRect(0, 0, size, size)
 
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (!matrix[r] || matrix[r][c] === undefined) continue
-        const value = matrix[r][c]
-        const normalized = (value - 2) / 75
-        const [rv, gv, bv] = heatColor(normalized)
-        ctx.fillStyle = `rgb(${Math.round(rv * 255)}, ${Math.round(gv * 255)}, ${Math.round(bv * 255)})`
-        ctx.fillRect(c * cellW, r * cellH, Math.ceil(cellW), Math.ceil(cellH))
+    // Render pixel-by-pixel in log-polar retinotopic space
+    const step = 2
+    for (let py = 0; py < size; py += step) {
+      for (let px = 0; px < size; px += step) {
+        const dx = px - cx
+        const dy = py - cy
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist > maxR) continue
+
+        // dist from center = eccentricity (log-polar: center=fovea, edge=periphery)
+        // Schwartz (1977): cortical distance ~ log(eccentricity)
+        // Invert: pixel distance -> visual field eccentricity
+        const distNorm = dist / maxR
+        const logScale = 0.35
+        const eccentricity =
+          (Math.exp(distNorm / logScale) - 1) /
+          (Math.exp(1 / logScale) - 1)
+        const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
+        const ecc = Math.min(eccentricity, 1.0) * maxEcc
+
+        // Angle: polar angle in visual field
+        // Top of circle (dy<0) = dorsal = lower visual field
+        // Bottom (dy>0) = ventral = upper visual field
+        // Left/right = contralateral hemifields
+        const angle = Math.atan2(dy, dx)
+
+        const visualX = ecc * Math.cos(angle)
+        const visualY = ecc * Math.sin(angle)
+
+        const gCol = Math.floor(halfCols + visualX)
+        const gRow = Math.floor(halfRows + visualY)
+
+        if (
+          gRow >= 0 && gRow < rows &&
+          gCol >= 0 && gCol < cols &&
+          matrix[gRow] && matrix[gRow][gCol] !== undefined
+        ) {
+          const value = matrix[gRow][gCol]
+          const normalized = (value - 2) / 75
+          const [rv, gv, bv] = heatColor(normalized)
+          ctx.fillStyle = `rgb(${Math.round(rv * 255)}, ${Math.round(gv * 255)}, ${Math.round(bv * 255)})`
+          ctx.fillRect(px, py, step, step)
+        }
       }
     }
+
+    // Draw calcarine sulcus line (horizontal through center)
+    ctx.strokeStyle = "rgba(255,255,255,0.3)"
+    ctx.lineWidth = 0.5
+    ctx.setLineDash([2, 2])
+    ctx.beginPath()
+    ctx.moveTo(cx - maxR, cy)
+    ctx.lineTo(cx + maxR, cy)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Draw fovea marker at center
+    ctx.beginPath()
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+    ctx.fillStyle = "rgba(255,255,255,0.8)"
+    ctx.fill()
+
+    // Circular outline for V1 boundary
+    ctx.beginPath()
+    ctx.arc(cx, cy, maxR, 0, Math.PI * 2)
+    ctx.strokeStyle = "rgba(0, 210, 160, 0.4)"
+    ctx.lineWidth = 1
+    ctx.stroke()
   }, [matrix])
 
   // Attach load event to model-viewer element
@@ -476,7 +540,7 @@ export function OccipitalHeatmap3D({
             exposure="0.6"
             shadow-intensity="0"
             camera-target="-13.08m 10.93m 81.89m"
-            camera-orbit="180deg 90deg 120m"
+            camera-orbit="180deg 75deg 250m"
             min-camera-orbit="auto auto 10m"
             max-camera-orbit="auto auto 2000m"
             min-field-of-view="5deg"
@@ -503,13 +567,13 @@ export function OccipitalHeatmap3D({
         <div className="absolute bottom-2 right-2 z-10 rounded border border-border bg-[#060810]/90 p-1">
           <canvas
             ref={insetCanvasRef}
-            width={70}
-            height={70}
+            width={60}
+            height={60}
             className="block"
-            style={{ width: 70, height: 70 }}
+            style={{ width: 60, height: 60 }}
           />
-          <p className="mt-0.5 text-center font-mono text-[8px] text-muted-foreground">
-            2D Heatmap
+          <p className="mt-0.5 text-center font-mono text-[7px] text-muted-foreground">
+            V1 Retinotopy
           </p>
         </div>
       </div>
