@@ -606,34 +606,30 @@ export function OccipitalHeatmap3D({
   </div>
   <LearnMore>
     <p className="mb-1.5">
-      The cortex map visualizes how the camera image is retinotopically projected
-      onto the primary visual cortex (V1) in the occipital lobe, following the
-      human visual pathway:
+      This visualizes how the camera image is retinotopically projected onto the
+      primary visual cortex (V1) in the occipital lobe:
     </p>
     <ul className="mb-1.5 list-inside list-disc space-y-1">
       <li>
-        <strong className="text-foreground">Contralateral projection</strong> -- at the optic chiasm, nasal
-        retinal fibers cross over so that the left visual field maps to the
-        right hemisphere and vice versa (mirror-reversed left to right).
+        <strong className="text-foreground">Contralateral projection:</strong> at the
+        optic chiasm, nasal fibers cross so the left visual field maps to the
+        right hemisphere and vice versa.
       </li>
       <li>
-        <strong className="text-foreground">Vertical inversion</strong> -- parietal optic radiations carry
-        the lower visual field to dorsal V1 (above the calcarine sulcus),
-        while temporal optic radiations carry the upper visual field to
-        ventral V1 (below the calcarine), resulting in an upside-down mapping.
+        <strong className="text-foreground">Vertical inversion:</strong> parietal
+        radiations carry the lower visual field to dorsal V1 (above the calcarine
+        sulcus), temporal radiations carry the upper field to ventral V1 (below it).
       </li>
       <li>
-        <strong className="text-foreground">Log-polar foveal magnification</strong> -- the fovea (center of
-        gaze) maps to the occipital pole and occupies a disproportionately large
-        area of cortex (~50% of V1 for the central 10 degrees), following the
-        Schwartz (1977) log-polar transform.
+        <strong className="text-foreground">Foveal magnification:</strong> the fovea
+        maps to the occipital pole and occupies ~50% of V1 for the central
+        10{'\u00B0'}, following a log-polar transform (Schwartz 1977).
       </li>
     </ul>
     <p>
-      The heatmap colors represent stimulation intensity at each cortical location,
-      from cold blue (low current, ~2 {'\u03BCA'}) to hot white (high current,
-      ~77 {'\u03BCA'}). The small 2D inset in the bottom-right shows the same
-      retinotopic mapping as a flat cortical surface view.
+      Heatmap colors indicate stimulation intensity, from cold blue (~2 {'\u03BCA'})
+      to hot white (~77 {'\u03BCA'}). The 2D inset shows the same mapping as a flat
+      cortical surface view.
     </p>
   </LearnMore>
   </div>
