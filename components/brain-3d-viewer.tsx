@@ -605,31 +605,48 @@ export function OccipitalHeatmap3D({
   <span className="text-[10px]">high stimulus</span>
   </div>
   <LearnMore>
+    <p className="mb-2 font-medium text-foreground text-[11px]">The Visual Pathway</p>
     <p className="mb-1.5">
-      This visualizes how the camera image is retinotopically projected onto the
-      primary visual cortex (V1) in the occipital lobe:
+      Light enters both eyes and is optically inverted by the lens, projecting an
+      upside-down, left-right reversed image onto each retina. Retinal ganglion cell
+      axons form the optic nerve and converge at the optic chiasm, where fibers from
+      the nasal hemiretina of each eye cross to the contralateral hemisphere. This
+      means the entire left visual field (temporal retina of the left eye, nasal retina
+      of the right eye) projects to the right LGN and right V1, and vice versa.
     </p>
-    <ul className="mb-1.5 list-inside list-disc space-y-1">
-      <li>
-        <strong className="text-foreground">Contralateral projection:</strong> at the
-        optic chiasm, nasal fibers cross so the left visual field maps to the
-        right hemisphere and vice versa.
-      </li>
-      <li>
-        <strong className="text-foreground">Vertical inversion:</strong> parietal
-        radiations carry the lower visual field to dorsal V1 (above the calcarine
-        sulcus), temporal radiations carry the upper field to ventral V1 (below it).
-      </li>
-      <li>
-        <strong className="text-foreground">Foveal magnification:</strong> the fovea
-        maps to the occipital pole and occupies ~50% of V1 for the central
-        10{'\u00B0'}, following a log-polar transform (Schwartz 1977).
-      </li>
-    </ul>
+    <p className="mb-2 font-medium text-foreground text-[11px]">Calcarine Sulcus Organization</p>
+    <p className="mb-1.5">
+      From the LGN, axons travel as optic radiations that split into two bundles.
+      The parietal (dorsal) bundle carries information from the inferior (lower) visual
+      field to cortex above the calcarine sulcus (dorsal V1). The temporal (ventral)
+      bundle, known as Meyer{"'"}s loop, takes a longer anterior detour through the
+      temporal lobe before reaching cortex below the calcarine sulcus (ventral V1).
+      The result: the upper visual field is represented on the ventral bank, the lower
+      field on the dorsal bank, producing a vertically inverted cortical map.
+    </p>
+    <p className="mb-2 font-medium text-foreground text-[11px]">Cortical Magnification Factor</p>
+    <p className="mb-1.5">
+      V1 does not represent the visual field uniformly. The cortical magnification
+      factor (mm of cortex per degree of visual angle) is highest at the fovea and
+      falls off with eccentricity. The central 2{'\u00B0'} of the visual field occupy
+      roughly 25% of the total V1 surface area. The central 10{'\u00B0'} account for
+      nearly 50%. This follows a log-polar relationship described by Schwartz (1977)
+      and validated by Daniel {"&"} Whitteridge (1961): cortical distance from the
+      occipital pole is proportional to log(eccentricity + a), where a is a small
+      constant (~0.7{'\u00B0'}). In practice, the center of the camera image receives
+      massively over-represented cortical coverage relative to the periphery, which
+      is why electrode arrays targeting the foveal representation can produce
+      higher-resolution percepts.
+    </p>
+    <p className="mb-2 font-medium text-foreground text-[11px]">Reading the Heatmap</p>
     <p>
-      Heatmap colors indicate stimulation intensity, from cold blue (~2 {'\u03BCA'})
-      to hot white (~77 {'\u03BCA'}). The 2D inset shows the same mapping as a flat
-      cortical surface view.
+      Each vertex on the 3D brain surface is colored by the stimulation current its
+      corresponding electrode would deliver. Blue (cold) indicates low current
+      (~2 {'\u03BCA'}), yellow/red indicates moderate current, and white (hot) indicates
+      the maximum ~77 {'\u03BCA'}. Grey vertices fall outside V1 and receive no
+      stimulation. The 2D inset in the corner shows the same retinotopic mapping
+      unfolded as a flat cortical surface: fovea at center, dorsal V1 at top, ventral
+      V1 at bottom, left cortex on the left, right cortex on the right.
     </p>
   </LearnMore>
   </div>
