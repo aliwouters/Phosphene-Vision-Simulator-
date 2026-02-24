@@ -161,16 +161,16 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
           {gridRows}x{gridCols} grid
         </div>
       </div>
-      <LearnMore step={1}>
+      <LearnMore>
         <p>
-          In a cortical visual prosthesis, a miniature camera embedded in a pair of
-          glasses records the visual scene in real time. This camera acts as a
-          substitute for the biological eye, continuously capturing the environment
-          in front of the user. The video feed is processed by an external unit that
-          downsamples the image into a simplified grid of brightness values, matching
-          the resolution of the implanted electrode array. This is the first stage of
-          the prosthesis pipeline: translating the outside world into a digital signal
-          the brain can eventually interpret.
+          In a cortical visual prosthesis system, a miniature camera mounted on a pair
+          of glasses continuously records the visual scene in front of the user. This
+          camera serves as a substitute for the biological eye, capturing real-time
+          video of the environment. The feed is then processed by an external unit
+          that converts the raw image into a simplified grid of brightness values,
+          matching the resolution of the implanted electrode array. This is the first
+          stage of the visual prosthesis pipeline -- translating the outside world into
+          a digital signal the brain can eventually interpret.
         </p>
       </LearnMore>
     </div>
