@@ -73,6 +73,7 @@ export function OccipitalHeatmap3D({
 }: OccipitalHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mvRef = useRef<HTMLElement | null>(null)
+  const insetCanvasRef = useRef<HTMLCanvasElement>(null)
   const scriptLoaded = useRef(false)
   const [ready, setReady] = useState(false)
   const meshDataRef = useRef<{
@@ -392,6 +393,34 @@ export function OccipitalHeatmap3D({
     return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
+  // Paint the 2D inset heatmap square
+  useEffect(() => {
+    const canvas = insetCanvasRef.current
+    if (!canvas || !matrix || matrix.length === 0) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const size = 120
+    const rows = matrix.length
+    const cols = matrix[0]?.length || 0
+    const cellW = size / cols
+    const cellH = size / rows
+
+    ctx.fillStyle = "#060810"
+    ctx.fillRect(0, 0, size, size)
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!matrix[r] || matrix[r][c] === undefined) continue
+        const value = matrix[r][c]
+        const normalized = (value - 2) / 75
+        const [rv, gv, bv] = heatColor(normalized)
+        ctx.fillStyle = `rgb(${Math.round(rv * 255)}, ${Math.round(gv * 255)}, ${Math.round(bv * 255)})`
+        ctx.fillRect(c * cellW, r * cellH, Math.ceil(cellW), Math.ceil(cellH))
+      }
+    }
+  }, [matrix])
+
   // Attach load event to model-viewer element
   useEffect(() => {
     if (!ready) return
@@ -458,6 +487,18 @@ export function OccipitalHeatmap3D({
         )}
         <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/70 px-2 py-1 font-mono text-[10px] text-muted-foreground">
           drag to rotate / scroll to zoom
+        </div>
+        <div className="absolute bottom-2 right-2 z-10 rounded border border-border bg-[#060810]/90 p-1">
+          <canvas
+            ref={insetCanvasRef}
+            width={120}
+            height={120}
+            className="block"
+            style={{ width: 120, height: 120 }}
+          />
+          <p className="mt-0.5 text-center font-mono text-[8px] text-muted-foreground">
+            2D Heatmap
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
