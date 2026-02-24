@@ -221,15 +221,20 @@ export function OccipitalHeatmap3D({
         const scaleFactor = 2.0 / maxDim
         mesh.scale.set(scaleFactor, scaleFactor, scaleFactor)
 
-        // Rotate so we see the back of the brain (occipital) first
-        mesh.rotation.y = Math.PI
-
         scene.add(mesh)
 
-        // Position camera to see the whole brain
-        camera.position.set(0, 0.3, 3.0)
-        camera.lookAt(0, 0, 0)
-        controls.target.set(0, 0, 0)
+        // V1 target in original model coords: x=-66.89, y=8.88, z=-6.95
+        // After centering, these become:
+        const v1TargetX = (-66.89 - centerX) * scaleFactor
+        const v1TargetY = (8.88 - centerY) * scaleFactor
+        const v1TargetZ = (-6.95 - centerZ) * scaleFactor
+
+        console.log("[v0] V1 target in scene coords:", v1TargetX, v1TargetY, v1TargetZ)
+
+        // Point camera at the V1 target from the side (looking along +x toward the left hemisphere occipital)
+        controls.target.set(v1TargetX, v1TargetY, v1TargetZ)
+        camera.position.set(v1TargetX - 2.5, v1TargetY + 0.5, v1TargetZ)
+        camera.lookAt(v1TargetX, v1TargetY, v1TargetZ)
         controls.update()
 
         console.log("[v0] Brain model centered and scaled. Scale:", scaleFactor, "Center:", centerX, centerY, centerZ)
@@ -309,44 +314,59 @@ export function OccipitalHeatmap3D({
       const { gridRows: gRows, gridCols: gCols } = gridRef.current
       if (mat.length === 0) return
 
-      const { minX, maxX, minY, maxY, minZ, maxZ } = ref.bounds
-      const zRange = maxZ - minZ
+      const { minY, maxY } = ref.bounds
       const yRange = maxY - minY
-      const xRange = maxX - minX
-      const occThreshZ = minZ + zRange * 0.35
-      const fadeStartZ = minZ + zRange * 0.28
       const halfRows = gRows / 2
       const halfCols = gCols / 2
       const posArr = ref.positions
       const colArr = ref.colors
       const vertCount = posArr.length / 3
 
+      // V1 target in centered coordinates (pre-computed from original -66.89, 8.88, -6.95)
+      // These are the centered coords before scaling -- we work in centered-unscaled space
+      // since posArr stores centered-unscaled positions
+      const v1CenterX = -66.89 - ((ref.bounds.minX + ref.bounds.maxX) / 2 + 66.89 + ref.bounds.minX) * 0
+      // Actually: positions are already centered. The V1 target in model space was (-66.89, 8.88, -6.95).
+      // The centering offset was applied to the geometry. posArr has the centered values.
+      // The original center was ((minOrig+maxOrig)/2) for each axis.
+      // From the inspection: original bounds x[-76,59], y[-56,79], z[-87,85]
+      // Original center: x=-8.5, y=11.5, z=-1
+      // So V1 in centered space: x = -66.89 - (-8.5) = -58.39, y = 8.88 - 11.5 = -2.62, z = -6.95 - (-1) = -5.95
+      const v1X = -58.39
+      const v1Y = -2.62
+      const v1Z = -5.95
+      const v1Radius = 30.0 // radius around V1 center to paint
+      const fadeStart = 22.0 // start fading at this distance
+
       for (let i = 0; i < vertCount; i++) {
         const x = posArr[i * 3]
         const y = posArr[i * 3 + 1]
         const z = posArr[i * 3 + 2]
 
-        if (z < occThreshZ) {
-          const zNorm =
-            1.0 - (z - minZ) / (occThreshZ - minZ)
+        const dx = x - v1X
+        const dy = y - v1Y
+        const dz = z - v1Z
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+
+        if (dist < v1Radius) {
+          // Map distance from V1 center to eccentricity (closer = foveal)
+          const distNorm = dist / v1Radius
           const logScale = 0.4
           const eccentricity =
-            (Math.exp(zNorm / logScale) - 1) /
+            (Math.exp(distNorm / logScale) - 1) /
             (Math.exp(1 / logScale) - 1)
-          const maxEcc = Math.sqrt(
-            halfRows * halfRows + halfCols * halfCols
-          )
+          const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
           const ecc = eccentricity * maxEcc
 
+          // Use y for dorsal/ventral (upper/lower visual field)
           const yMid = (minY + maxY) / 2
           const yNorm = (y - yMid) / (yRange * 0.5)
           const angle = yNorm * Math.PI * 0.4
 
-          const xMid = (minX + maxX) / 2
-          const xNorm = (x - xMid) / (xRange * 0.5)
+          // Use z for left/right
+          const zNorm = (z - v1Z) / v1Radius
 
-          const visualX =
-            ecc * Math.cos(angle) * Math.sign(xNorm || 1)
+          const visualX = ecc * Math.cos(angle) * Math.sign(zNorm || 1)
           const visualY = ecc * Math.sin(angle)
 
           const gCol = Math.floor(halfCols + visualX)
@@ -364,10 +384,8 @@ export function OccipitalHeatmap3D({
             const normalized = (value - 2) / 75
 
             let fade = 1.0
-            if (z > fadeStartZ) {
-              fade =
-                1.0 -
-                (z - fadeStartZ) / (occThreshZ - fadeStartZ)
+            if (dist > fadeStart) {
+              fade = 1.0 - (dist - fadeStart) / (v1Radius - fadeStart)
               fade = fade * fade
             }
 
