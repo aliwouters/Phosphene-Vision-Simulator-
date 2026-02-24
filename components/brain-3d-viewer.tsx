@@ -278,45 +278,46 @@ export function OccipitalHeatmap3D({
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
       if (dist < v1Radius) {
-        // Retinotopic V1 mapping (Schwartz 1977, Horton & Hoyt 1991)
-        // V1 represents the visual field UPSIDE-DOWN and MIRROR-REVERSED:
-        //
-        // ECCENTRICITY (distance from fovea in visual field):
-        //   z-axis: occipital pole (z=81.89) = fovea (center of gaze)
-        //   Anterior from pole (decreasing z) = increasing eccentricity (peripheral)
-        //   Log-polar: cortical magnification ~10x at fovea vs 10deg (Daniel & Whitteridge 1961)
-        //
-        // INVERSION (Horton & Hoyt 1991):
-        //   Dorsal V1 (y > v1Y) -> LOWER visual field -> BOTTOM rows of camera grid
-        //   Ventral V1 (y < v1Y) -> UPPER visual field -> TOP rows of camera grid
-        //   Left cortex (x < v1X) -> RIGHT visual field -> RIGHT cols of camera grid
-        //   Right cortex (x > v1X) -> LEFT visual field -> LEFT cols of camera grid
+        // V1 retinotopic mapping (Schwartz 1977, Horton & Hoyt 1991)
+        // The cortex is a MIRROR + UPSIDE-DOWN version of the visual field:
+        //   Left cortex (x < v1X)  -> RIGHT visual field (contralateral)
+        //   Right cortex (x > v1X) -> LEFT visual field (contralateral)
+        //   Dorsal V1 (y > v1Y)    -> LOWER visual field (inverted)
+        //   Ventral V1 (y < v1Y)   -> UPPER visual field (inverted)
+        //   Occipital pole (z=v1Z) -> Fovea (center of gaze)
+        //   Anterior from pole     -> Periphery (log-polar compressed)
 
         // Eccentricity: z-distance from pole, log-polar compressed
-        const zDelta = v1Z - z // positive = anterior from pole
+        const zDelta = v1Z - z // positive = anterior = more peripheral
         const zNorm = Math.max(0, zDelta) / v1Radius
         const logScale = 0.35
         const eccentricity =
           (Math.exp(zNorm / logScale) - 1) /
           (Math.exp(1 / logScale) - 1)
-        const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
-        const ecc = Math.min(eccentricity, 1.0) * maxEcc
 
-        // Cortical position relative to V1 center
-        const yDelta = y - v1Y // positive = dorsal cortex
+        // Cortical x,y offset from V1 center
         const xDelta = x - v1X // positive = right cortex
+        const yDelta = y - v1Y // positive = dorsal cortex
+        const lateralDist = Math.sqrt(xDelta * xDelta + yDelta * yDelta)
         const corticalAngle = Math.atan2(yDelta, xDelta)
 
-        // Map cortex -> visual field -> camera grid (un-mirrored matrix, CSS-mirrored display)
-        // The matrix is un-mirrored: col=0 = right side of real world
-        // Contralateral: left cortex (xDelta<0) -> right visual field -> LOW col in matrix
-        //   (CSS mirror will flip it to appear on screen-right = correct)
-        // Inversion: dorsal cortex (yDelta>0) -> lower visual field -> HIGH row in matrix
-        const visualX = ecc * Math.cos(corticalAngle)  // left cortex -> low col (contralateral via CSS mirror)
-        const visualY = -ecc * Math.sin(corticalAngle) // dorsal -> high row (inverted)
+        // Combine z-eccentricity with lateral offset for total eccentricity
+        const totalEcc = Math.min(1.0, Math.sqrt(eccentricity * eccentricity + (lateralDist / v1Radius) * (lateralDist / v1Radius)))
 
-        const gCol = Math.floor(halfCols + visualX)
-        const gRow = Math.floor(halfRows + visualY)
+        // Map cortex -> camera grid (MIRROR horizontally, INVERT vertically)
+        // Matrix is un-mirrored raw camera: col 0 = camera-left, row 0 = camera-top
+        // Camera display is CSS-mirrored, so camera-left = user's right in real world
+        //
+        // Contralateral: left cortex (xDelta<0) -> right visual field
+        //   In mirrored camera: right visual field = user's right = screen-right = HIGH col in raw matrix
+        //   So: negative xDelta -> high col. We NEGATE xDelta for col mapping.
+        // Inverted: dorsal cortex (yDelta>0) -> lower visual field = BOTTOM of camera = HIGH row
+        //   So: positive yDelta -> high row. Direct mapping.
+        const colFraction = -Math.cos(corticalAngle) * totalEcc // negate for contralateral mirror
+        const rowFraction = Math.sin(corticalAngle) * totalEcc  // direct for inversion (dorsal->bottom)
+
+        const gCol = Math.floor(halfCols + colFraction * halfCols)
+        const gRow = Math.floor(halfRows + rowFraction * halfRows)
 
         if (
           gRow >= 0 && gRow < gRows &&
@@ -402,15 +403,16 @@ export function OccipitalHeatmap3D({
     return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
-  // Paint the 2D inset as a V1 CORTICAL SURFACE map
-  // This shows how the cortex is laid out, which is INVERTED and MIRROR-REVERSED
-  // relative to the visual field (Horton & Hoyt 1991):
-  //   - Left side of map = left cortex = represents RIGHT visual field (contralateral)
-  //   - Right side = right cortex = represents LEFT visual field
-  //   - Top = dorsal V1 = represents LOWER visual field (inverted)
-  //   - Bottom = ventral V1 = represents UPPER visual field (inverted)
-  //   - Center = occipital pole = fovea
-  //   - Edges = anterior V1 = periphery
+  // Paint the 2D inset: a MIRROR + UPSIDE-DOWN version of the camera feed
+  // with log-polar V1 retinotopic scaling (Schwartz 1977)
+  //
+  // This is the cortical surface view:
+  //   Left side (L ctx)  = left cortex  = sees RIGHT visual field (contralateral)
+  //   Right side (R ctx) = right cortex = sees LEFT visual field (contralateral)
+  //   Top (dorsal)       = dorsal V1    = sees LOWER visual field (inverted)
+  //   Bottom (ventral)   = ventral V1   = sees UPPER visual field (inverted)
+  //   Center             = occipital pole = fovea
+  //   Edges              = anterior V1  = periphery
   useEffect(() => {
     const canvas = insetCanvasRef.current
     if (!canvas || !matrix || matrix.length === 0) return
@@ -425,35 +427,25 @@ export function OccipitalHeatmap3D({
     ctx.fillStyle = "#060810"
     ctx.fillRect(0, 0, w, h)
 
-    // Each pixel on this 2D map = a location on the V1 cortical surface
-    // u = cortical left(-1) to right(+1), v = dorsal(-1) to ventral(+1)
-    // The VISUAL FIELD position is inverted and mirrored:
-    //   cortical left -> right visual field (mirror)
-    //   cortical dorsal -> lower visual field (invert)
+    // For each pixel on the 2D cortex map, find which camera grid cell it sees
     const step = 1
     for (let py = 0; py < h; py += step) {
       for (let px = 0; px < w; px += step) {
         // Cortical position normalized to [-1, 1]
-        const u = (px - w / 2) / (w / 2)  // cortical left-right
-        const v = (py - h / 2) / (h / 2)  // cortical dorsal(-) to ventral(+)
+        const u = (px - w / 2) / (w / 2)  // -1=left cortex, +1=right cortex
+        const v = (py - h / 2) / (h / 2)  // -1=dorsal, +1=ventral
 
-        // Log-polar eccentricity from center
+        // Log-polar: expand from cortex center outward (foveal magnification)
         const logScale = 0.35
         const absU = Math.abs(u)
         const absV = Math.abs(v)
-        const eccU = (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1)
-        const eccV = (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1)
+        const eccU = Math.min(1, (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1))
+        const eccV = Math.min(1, (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1))
 
-        // Retinotopic inversion + mirror (Horton & Hoyt 1991)
-        // Camera is mirrored (selfie), so the matrix col=0 is the RIGHT side of the real world
-        // After CSS mirror: user's left appears on screen-left = high col in matrix
-        //
-        // Cortical left (u<0) -> RIGHT visual field -> in un-mirrored matrix = LOW col
-        //   but displayed mirrored, so it appears on the user's RIGHT (correct contralateral)
-        // Cortical right (u>0) -> LEFT visual field -> in un-mirrored matrix = HIGH col
-        const gCol = Math.floor(cols / 2 + eccU * (cols / 2) * Math.sign(u))
-        // Cortical dorsal (v<0, top) -> LOWER visual field -> BOTTOM of camera (HIGH row)
-        // Cortical ventral (v>0, bottom) -> UPPER visual field -> TOP of camera (LOW row)
+        // MIRROR + INVERT to get camera grid position:
+        // Left cortex (u<0) -> right visual field -> in raw matrix HIGH col (negate u)
+        // Dorsal (v<0, top of map) -> lower visual field -> HIGH row in matrix (negate v)
+        const gCol = Math.floor(cols / 2 - eccU * (cols / 2) * Math.sign(u))
         const gRow = Math.floor(rows / 2 - eccV * (rows / 2) * Math.sign(v))
 
         if (
@@ -470,7 +462,7 @@ export function OccipitalHeatmap3D({
       }
     }
 
-    // Calcarine sulcus (horizontal) and vertical meridian (vertical)
+    // Calcarine sulcus (horizontal) and vertical meridian
     ctx.strokeStyle = "rgba(255,255,255,0.25)"
     ctx.lineWidth = 0.5
     ctx.setLineDash([2, 2])
@@ -484,20 +476,20 @@ export function OccipitalHeatmap3D({
     ctx.stroke()
     ctx.setLineDash([])
 
-    // Fovea dot at center (occipital pole)
+    // Fovea dot
     ctx.beginPath()
     ctx.arc(w / 2, h / 2, 1.5, 0, Math.PI * 2)
     ctx.fillStyle = "rgba(255,255,255,0.8)"
     ctx.fill()
 
-    // Labels: cortical anatomy (not visual field)
+    // Labels
     ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
     ctx.font = "4.5px monospace"
     ctx.textAlign = "center"
-    ctx.fillText("L ctx", 8, h / 2 + 2)      // left cortex
-    ctx.fillText("R ctx", w - 8, h / 2 + 2)   // right cortex
-    ctx.fillText("dorsal", w / 2, 6)            // dorsal bank
-    ctx.fillText("ventral", w / 2, h - 2)       // ventral bank
+    ctx.fillText("L ctx", 8, h / 2 + 2)
+    ctx.fillText("R ctx", w - 8, h / 2 + 2)
+    ctx.fillText("dorsal", w / 2, 6)
+    ctx.fillText("ventral", w / 2, h - 2)
   }, [matrix])
 
   // Attach load event to model-viewer element
