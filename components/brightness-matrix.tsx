@@ -1,5 +1,7 @@
 "use client"
 
+import { LearnMore } from "./learn-more"
+
 interface BrightnessMatrixProps {
   matrix: number[][]
   gridRows: number
@@ -86,6 +88,20 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
         <span>{'2\u00A0\u03BCA = dark'}</span>
         <span>{'77\u00A0\u03BCA = bright'}</span>
       </div>
+      <LearnMore>
+        <p>
+          Each cell in the brightness matrix represents the stimulation current that
+          will be delivered by one electrode in the cortical implant. Direct brain
+          stimulation of V1 neurons typically operates between <strong className="text-foreground">2 and
+          77 microamps</strong> ({'\u03BCA'}), where lower currents produce faint, barely
+          perceptible phosphenes and higher currents produce brighter, more vivid ones.
+          The matrix encodes the average luminance of each camera grid cell into a
+          corresponding stimulation amperage -- darker regions receive minimal current
+          (~2 {'\u03BCA'}), while bright regions receive up to 77 {'\u03BCA'}. This
+          current-to-brightness encoding is the critical translation step that converts
+          a visual scene into an electrical stimulation pattern the brain can interpret.
+        </p>
+      </LearnMore>
     </div>
   )
 }
