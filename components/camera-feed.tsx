@@ -36,7 +36,11 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
     overlayCanvas.width = video.videoWidth
     overlayCanvas.height = video.videoHeight
 
-    ctx.drawImage(video, 0, 0)
+    // Mirror the camera feed horizontally (selfie mode)
+    ctx.save()
+    ctx.scale(-1, 1)
+    ctx.drawImage(video, -video.videoWidth, 0)
+    ctx.restore()
 
     const cellW = video.videoWidth / gridCols
     const cellH = video.videoHeight / gridRows
@@ -149,12 +153,12 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
               animationRef.current = requestAnimationFrame(processFrame)
             }
           }}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover -scale-x-100"
         />
         <canvas ref={canvasRef} className="hidden" />
         <canvas
           ref={overlayCanvasRef}
-          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          className="absolute inset-0 h-full w-full object-cover -scale-x-100 pointer-events-none"
         />
         <div className="absolute bottom-2 left-2 rounded bg-background/80 px-2 py-1 font-mono text-xs text-muted-foreground">
           {gridRows}x{gridCols} grid
