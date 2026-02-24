@@ -304,17 +304,24 @@ export function OccipitalHeatmap3D({
         // Combine z-eccentricity with lateral offset for total eccentricity
         const totalEcc = Math.min(1.0, Math.sqrt(eccentricity * eccentricity + (lateralDist / v1Radius) * (lateralDist / v1Radius)))
 
-        // Map cortex -> camera grid (MIRROR horizontally, INVERT vertically)
-        // Matrix is un-mirrored raw camera: col 0 = camera-left, row 0 = camera-top
-        // Camera display is CSS-mirrored, so camera-left = user's right in real world
+        // Map cortex -> camera matrix via visual pathway:
         //
-        // Contralateral: left cortex (xDelta<0) -> right visual field
-        //   In mirrored camera: right visual field = user's right = screen-right = HIGH col in raw matrix
-        //   So: negative xDelta -> high col. We NEGATE xDelta for col mapping.
-        // Inverted: dorsal cortex (yDelta>0) -> lower visual field = BOTTOM of camera = HIGH row
-        //   So: positive yDelta -> high row. Direct mapping.
-        const colFraction = -Math.cos(corticalAngle) * totalEcc // negate for contralateral mirror
-        const rowFraction = Math.sin(corticalAngle) * totalEcc  // direct for inversion (dorsal->bottom)
+        // Camera display is CSS-mirrored (selfie), so:
+        //   Screen-LEFT = HIGH col in raw matrix, Screen-RIGHT = LOW col
+        //
+        // CONTRALATERAL (optic chiasm):
+        //   Left cortex (xDelta<0) -> RIGHT visual field -> screen-RIGHT -> LOW col in matrix
+        //   cos(corticalAngle) is negative when xDelta<0 -> colFraction<0 -> gCol < halfCols (low) 
+        //   Right cortex (xDelta>0) -> LEFT visual field -> screen-LEFT -> HIGH col
+        //   cos(corticalAngle) is positive when xDelta>0 -> colFraction>0 -> gCol > halfCols (high)
+        //
+        // VERTICAL INVERSION (parietal/temporal radiations):
+        //   Dorsal (yDelta>0) -> LOWER visual field -> screen-BOTTOM -> HIGH row
+        //   sin(corticalAngle) is positive when yDelta>0 -> rowFraction>0 -> gRow > halfRows (high)
+        //   Ventral (yDelta<0) -> UPPER visual field -> screen-TOP -> LOW row
+        //   sin(corticalAngle) is negative -> rowFraction<0 -> gRow < halfRows (low)
+        const colFraction = Math.cos(corticalAngle) * totalEcc
+        const rowFraction = Math.sin(corticalAngle) * totalEcc
 
         const gCol = Math.floor(halfCols + colFraction * halfCols)
         const gRow = Math.floor(halfRows + rowFraction * halfRows)
@@ -442,10 +449,22 @@ export function OccipitalHeatmap3D({
         const eccU = Math.min(1, (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1))
         const eccV = Math.min(1, (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1))
 
-        // MIRROR + INVERT to get camera grid position:
-        // Left cortex (u<0) -> right visual field -> in raw matrix HIGH col (negate u)
-        // Dorsal (v<0, top of map) -> lower visual field -> HIGH row in matrix (negate v)
-        const gCol = Math.floor(cols / 2 - eccU * (cols / 2) * Math.sign(u))
+        // Map cortex position -> camera matrix position via visual pathway:
+        //
+        // Camera is CSS-mirrored for selfie display, so:
+        //   Screen-LEFT  = camera-RIGHT = HIGH col in raw matrix
+        //   Screen-RIGHT = camera-LEFT  = LOW col in raw matrix
+        //
+        // CONTRALATERAL projection (optic chiasm crossing):
+        //   Left cortex  (u<0) sees RIGHT visual field = screen-RIGHT = LOW col
+        //   Right cortex (u>0) sees LEFT visual field  = screen-LEFT  = HIGH col
+        //   -> gCol moves WITH u: u<0 -> low col, u>0 -> high col
+        //
+        // VERTICAL INVERSION (parietal/temporal optic radiations):
+        //   Dorsal V1 (v<0, top of map)   sees LOWER visual field = screen-BOTTOM = HIGH row
+        //   Ventral V1 (v>0, bottom of map) sees UPPER visual field = screen-TOP = LOW row
+        //   -> gRow moves OPPOSITE to v: v<0 -> high row, v>0 -> low row
+        const gCol = Math.floor(cols / 2 + eccU * (cols / 2) * Math.sign(u))
         const gRow = Math.floor(rows / 2 - eccV * (rows / 2) * Math.sign(v))
 
         if (
