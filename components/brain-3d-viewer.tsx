@@ -209,8 +209,50 @@ export function OccipitalHeatmap3D({
         })
 
         const mesh = new THREE.Mesh(brainGeo, material)
-        mesh.scale.set(0.015, 0.015, 0.015)
+
+        // Center the geometry at the origin
+        const centerX = (minX + maxX) / 2
+        const centerY = (minY + maxY) / 2
+        const centerZ = (minZ + maxZ) / 2
+        brainGeo.translate(-centerX, -centerY, -centerZ)
+
+        // Scale to fit nicely in view (~2 units across)
+        const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ)
+        const scaleFactor = 2.0 / maxDim
+        mesh.scale.set(scaleFactor, scaleFactor, scaleFactor)
+
+        // Rotate so we see the back of the brain (occipital) first
+        mesh.rotation.y = Math.PI
+
         scene.add(mesh)
+
+        // Position camera to see the whole brain
+        camera.position.set(0, 0.3, 3.0)
+        camera.lookAt(0, 0, 0)
+        controls.target.set(0, 0, 0)
+        controls.update()
+
+        console.log("[v0] Brain model centered and scaled. Scale:", scaleFactor, "Center:", centerX, centerY, centerZ)
+
+        // Re-read positions after centering
+        const centeredPos = brainGeo.getAttribute("position")
+        const posArray = new Float32Array(centeredPos.count * 3)
+        for (let i = 0; i < centeredPos.count; i++) {
+          posArray[i * 3] = centeredPos.getX(i)
+          posArray[i * 3 + 1] = centeredPos.getY(i)
+          posArray[i * 3 + 2] = centeredPos.getZ(i)
+        }
+
+        // Recompute bounds after centering
+        let cMinX = Infinity, cMaxX = -Infinity, cMinY = Infinity, cMaxY = -Infinity, cMinZ = Infinity, cMaxZ = -Infinity
+        for (let i = 0; i < centeredPos.count; i++) {
+          const x = posArray[i * 3], y = posArray[i * 3 + 1], z = posArray[i * 3 + 2]
+          if (x < cMinX) cMinX = x; if (x > cMaxX) cMaxX = x
+          if (y < cMinY) cMinY = y; if (y > cMaxY) cMaxY = y
+          if (z < cMinZ) cMinZ = z; if (z > cMaxZ) cMaxZ = z
+        }
+
+        console.log("[v0] Centered bounds:", { cMinX, cMaxX, cMinY, cMaxY, cMinZ, cMaxZ })
 
         threeRef.current = {
           scene,
@@ -219,14 +261,8 @@ export function OccipitalHeatmap3D({
           controls,
           mesh,
           colors: colorsArray,
-          positions: new Float32Array(
-            positions.array.buffer.slice(
-              positions.array.byteOffset,
-              positions.array.byteOffset +
-                positions.array.byteLength
-            )
-          ),
-          bounds: { minX, maxX, minY, maxY, minZ, maxZ },
+          positions: posArray,
+          bounds: { minX: cMinX, maxX: cMaxX, minY: cMinY, maxY: cMaxY, minZ: cMinZ, maxZ: cMaxZ },
           animId: 0,
           THREE,
         }
