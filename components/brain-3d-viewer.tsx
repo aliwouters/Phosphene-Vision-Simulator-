@@ -70,7 +70,7 @@ export function OccipitalHeatmap3D({
   const initThree = useCallback(async () => {
     if (!containerRef.current) return
 
-    // Dynamically import Three.js from CDN via importmap
+    // Dynamically import Three.js from esm.sh CDN
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let THREE: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,22 +79,27 @@ export function OccipitalHeatmap3D({
     let OrbitControls: any
 
     try {
+      console.log("[v0] Loading Three.js from CDN...")
       THREE = await import(
         /* webpackIgnore: true */
-        "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.min.js"
+        "https://esm.sh/three@0.172.0"
       )
+      console.log("[v0] Three.js loaded, loading GLTFLoader...")
       const loaderModule = await import(
         /* webpackIgnore: true */
-        "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/loaders/GLTFLoader.js"
+        "https://esm.sh/three@0.172.0/examples/jsm/loaders/GLTFLoader.js"
       )
       GLTFLoader = loaderModule.GLTFLoader
+      console.log("[v0] GLTFLoader loaded, loading OrbitControls...")
       const controlsModule = await import(
         /* webpackIgnore: true */
-        "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/controls/OrbitControls.js"
+        "https://esm.sh/three@0.172.0/examples/jsm/controls/OrbitControls.js"
       )
       OrbitControls = controlsModule.OrbitControls
-    } catch {
-      console.error("[v0] Failed to load Three.js from CDN")
+      console.log("[v0] All Three.js modules loaded successfully")
+    } catch (err) {
+      console.error("[v0] Failed to load Three.js from CDN:", err)
+      setIsLoading(false)
       return
     }
 
@@ -138,10 +143,12 @@ export function OccipitalHeatmap3D({
 
     // Load the brain model
     const loader = new GLTFLoader()
+    console.log("[v0] Starting to load brain GLB model...")
     loader.load(
       "/models/full_brain_binary.glb",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (gltf: any) => {
+        console.log("[v0] Brain GLB loaded, traversing scene...")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let brainGeo: any = null
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -158,6 +165,7 @@ export function OccipitalHeatmap3D({
 
         const positions = brainGeo.getAttribute("position")
         const vertCount = positions.count
+        console.log("[v0] Brain mesh found with", vertCount, "vertices")
 
         // Compute bounds
         let minX = Infinity,
@@ -226,10 +234,16 @@ export function OccipitalHeatmap3D({
         setIsLoading(false)
         animate()
       },
-      undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (progress: any) => {
+        if (progress.total) {
+          console.log("[v0] Loading brain model:", Math.round((progress.loaded / progress.total) * 100) + "%")
+        }
+      },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (error: any) => {
         console.error("[v0] Error loading brain model:", error)
+        setIsLoading(false)
       }
     )
 
