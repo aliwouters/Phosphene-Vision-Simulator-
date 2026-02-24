@@ -278,22 +278,19 @@ export function OccipitalHeatmap3D({
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
       if (dist < v1Radius) {
-        // Retinotopic V1 mapping based on Schwartz (1977) log-polar model
-        // and Horton & Hoyt (1991) calcarine sulcus anatomy:
+        // Retinotopic V1 mapping (Schwartz 1977, Horton & Hoyt 1991)
+        // V1 represents the visual field UPSIDE-DOWN and MIRROR-REVERSED:
         //
-        // ECCENTRICITY (how far from center of gaze):
-        //   Mapped along the z-axis (anterior-posterior). The occipital pole
-        //   (z=81.89) is the foveal representation (center of gaze).
-        //   Moving anteriorly (decreasing z) = increasing eccentricity (peripheral vision).
-        //   Uses log-polar transform: cortical magnification factor is ~10x larger
-        //   at fovea than at 10deg eccentricity (Daniel & Whitteridge 1961).
+        // ECCENTRICITY (distance from fovea in visual field):
+        //   z-axis: occipital pole (z=81.89) = fovea (center of gaze)
+        //   Anterior from pole (decreasing z) = increasing eccentricity (peripheral)
+        //   Log-polar: cortical magnification ~10x at fovea vs 10deg (Daniel & Whitteridge 1961)
         //
-        // POLAR ANGLE (position around the visual field clock):
-        //   y-axis: dorsal bank (y > v1Y) = LOWER visual field
-        //           ventral bank (y < v1Y) = UPPER visual field
-        //   x-axis: left hemisphere (x < v1X) = RIGHT visual hemifield
-        //           right hemisphere (x > v1X) = LEFT visual hemifield
-        //   (contralateral representation, Horton & Hoyt 1991)
+        // INVERSION (Horton & Hoyt 1991):
+        //   Dorsal V1 (y > v1Y) -> LOWER visual field -> BOTTOM rows of camera grid
+        //   Ventral V1 (y < v1Y) -> UPPER visual field -> TOP rows of camera grid
+        //   Left cortex (x < v1X) -> RIGHT visual field -> RIGHT cols of camera grid
+        //   Right cortex (x > v1X) -> LEFT visual field -> LEFT cols of camera grid
 
         // Eccentricity: z-distance from pole, log-polar compressed
         const zDelta = v1Z - z // positive = anterior from pole
@@ -305,21 +302,19 @@ export function OccipitalHeatmap3D({
         const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
         const ecc = Math.min(eccentricity, 1.0) * maxEcc
 
-        // Polar angle from y (calcarine sulcus split) and x (hemifield)
-        // Calcarine runs ~horizontally at y=v1Y
-        const yDelta = y - v1Y // positive = dorsal, negative = ventral
-        const xDelta = x - v1X // positive = right hemisphere
-
-        // Compute angle in the visual field
-        // atan2 gives us continuous polar angle from the y and x offsets
+        // Cortical position relative to V1 center
+        const yDelta = y - v1Y // positive = dorsal cortex
+        const xDelta = x - v1X // positive = right cortex
         const corticalAngle = Math.atan2(yDelta, xDelta)
 
-        // Map to grid: eccentricity = distance from center, angle = direction
-        const visualX = ecc * Math.cos(corticalAngle)
-        const visualY = ecc * Math.sin(corticalAngle)
+        // Map cortex -> visual field (INVERTED + MIRROR-REVERSED)
+        // Negate both axes: dorsal cortex -> lower field (high row), left cortex -> right field (high col)
+        const visualX = -ecc * Math.cos(corticalAngle) // mirror left-right
+        const visualY = -ecc * Math.sin(corticalAngle) // invert up-down
 
+        // Visual field center = grid center
         const gCol = Math.floor(halfCols + visualX)
-        const gRow = Math.floor(halfRows - visualY)
+        const gRow = Math.floor(halfRows + visualY)
 
         if (
           gRow >= 0 && gRow < gRows &&
@@ -405,15 +400,15 @@ export function OccipitalHeatmap3D({
     return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
-  // Paint the 2D inset as a flat visual field heatmap with V1 retinotopic mapping
-  // This is the VISUAL FIELD representation (what the patient sees):
-  //   - Left side of image = left visual field (maps to RIGHT V1)
-  //   - Right side = right visual field (maps to LEFT V1)
-  //   - Top = upper visual field (maps to VENTRAL V1, below calcarine)
-  //   - Bottom = lower visual field (maps to DORSAL V1, above calcarine)
-  //   - Center = fovea (maps to occipital pole / posterior V1)
-  //   - Edges = periphery (maps to anterior V1)
-  // Log-polar compression: fovea over-represented (Schwartz 1977)
+  // Paint the 2D inset as a V1 CORTICAL SURFACE map
+  // This shows how the cortex is laid out, which is INVERTED and MIRROR-REVERSED
+  // relative to the visual field (Horton & Hoyt 1991):
+  //   - Left side of map = left cortex = represents RIGHT visual field (contralateral)
+  //   - Right side = right cortex = represents LEFT visual field
+  //   - Top = dorsal V1 = represents LOWER visual field (inverted)
+  //   - Bottom = ventral V1 = represents UPPER visual field (inverted)
+  //   - Center = occipital pole = fovea
+  //   - Edges = anterior V1 = periphery
   useEffect(() => {
     const canvas = insetCanvasRef.current
     if (!canvas || !matrix || matrix.length === 0) return
@@ -428,36 +423,32 @@ export function OccipitalHeatmap3D({
     ctx.fillStyle = "#060810"
     ctx.fillRect(0, 0, w, h)
 
-    // Render pixel-by-pixel: each pixel in this 2D map = a position in V1
-    // x-axis = horizontal position on cortex (left V1 to right V1)
-    //   left edge (px=0) = anterior V1 left hemisphere = right peripheral vision
-    //   center (px=w/2) = posterior pole = fovea
-    //   right edge (px=w) = anterior V1 right hemisphere = left peripheral vision
-    // y-axis = vertical position on cortex (dorsal to ventral)
-    //   top (py=0) = dorsal bank = lower visual field
-    //   center (py=h/2) = calcarine sulcus = horizontal meridian
-    //   bottom (py=h) = ventral bank = upper visual field
-
+    // Each pixel on this 2D map = a location on the V1 cortical surface
+    // u = cortical left(-1) to right(+1), v = dorsal(-1) to ventral(+1)
+    // The VISUAL FIELD position is inverted and mirrored:
+    //   cortical left -> right visual field (mirror)
+    //   cortical dorsal -> lower visual field (invert)
     const step = 1
     for (let py = 0; py < h; py += step) {
       for (let px = 0; px < w; px += step) {
-        // Normalize to [-1, 1] from center
-        const u = (px - w / 2) / (w / 2)  // -1 = left, +1 = right
-        const v = (py - h / 2) / (h / 2)  // -1 = top(dorsal), +1 = bottom(ventral)
+        // Cortical position normalized to [-1, 1]
+        const u = (px - w / 2) / (w / 2)  // cortical left-right
+        const v = (py - h / 2) / (h / 2)  // cortical dorsal(-) to ventral(+)
 
-        // Log-polar: distance from center = eccentricity
-        // Apply inverse log-polar to get visual field position
+        // Log-polar eccentricity from center
         const logScale = 0.35
         const absU = Math.abs(u)
         const absV = Math.abs(v)
         const eccU = (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1)
         const eccV = (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1)
 
-        // Map to grid coordinates
-        // u maps to columns: left of fovea = left visual field, right = right visual field
-        const gCol = Math.floor(cols / 2 + eccU * (cols / 2) * Math.sign(u))
-        // v maps to rows: top (dorsal, lower field) = bottom of camera, bottom (ventral, upper field) = top of camera
-        const gRow = Math.floor(rows / 2 + eccV * (rows / 2) * Math.sign(v))
+        // Apply inversion + mirror to get visual field -> camera grid position:
+        // Cortical left (u<0) -> right visual field -> RIGHT side of camera (high col)
+        // Cortical right (u>0) -> left visual field -> LEFT side of camera (low col)
+        const gCol = Math.floor(cols / 2 - eccU * (cols / 2) * Math.sign(u))
+        // Cortical dorsal (v<0, top) -> lower visual field -> BOTTOM of camera (high row)
+        // Cortical ventral (v>0, bottom) -> upper visual field -> TOP of camera (low row)
+        const gRow = Math.floor(rows / 2 - eccV * (rows / 2) * Math.sign(v))
 
         if (
           gRow >= 0 && gRow < rows &&
@@ -473,36 +464,34 @@ export function OccipitalHeatmap3D({
       }
     }
 
-    // Draw crosshair at fovea (center)
+    // Calcarine sulcus (horizontal) and vertical meridian (vertical)
     ctx.strokeStyle = "rgba(255,255,255,0.25)"
     ctx.lineWidth = 0.5
     ctx.setLineDash([2, 2])
-    // Horizontal = calcarine sulcus / horizontal meridian
     ctx.beginPath()
     ctx.moveTo(0, h / 2)
     ctx.lineTo(w, h / 2)
     ctx.stroke()
-    // Vertical = vertical meridian
     ctx.beginPath()
     ctx.moveTo(w / 2, 0)
     ctx.lineTo(w / 2, h)
     ctx.stroke()
     ctx.setLineDash([])
 
-    // Fovea dot
+    // Fovea dot at center (occipital pole)
     ctx.beginPath()
     ctx.arc(w / 2, h / 2, 1.5, 0, Math.PI * 2)
     ctx.fillStyle = "rgba(255,255,255,0.8)"
     ctx.fill()
 
-    // Axis labels
-    ctx.fillStyle = "rgba(255,255,255,0.35)"
-    ctx.font = "5px monospace"
+    // Labels: cortical anatomy (not visual field)
+    ctx.fillStyle = "rgba(0, 210, 160, 0.4)"
+    ctx.font = "4.5px monospace"
     ctx.textAlign = "center"
-    ctx.fillText("L", 4, h / 2 + 2)
-    ctx.fillText("R", w - 4, h / 2 + 2)
-    ctx.fillText("U", w / 2, 6)
-    ctx.fillText("D", w / 2, h - 2)
+    ctx.fillText("L ctx", 8, h / 2 + 2)      // left cortex
+    ctx.fillText("R ctx", w - 8, h / 2 + 2)   // right cortex
+    ctx.fillText("dorsal", w / 2, 6)            // dorsal bank
+    ctx.fillText("ventral", w / 2, h - 2)       // ventral bank
   }, [matrix])
 
   // Attach load event to model-viewer element
