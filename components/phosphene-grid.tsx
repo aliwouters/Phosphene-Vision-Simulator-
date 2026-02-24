@@ -101,16 +101,16 @@ export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps
           bright
         </span>
       </div>
-      <LearnMore>
+      <LearnMore step={3}>
         <p>
-          This is the simulated visual experience -- what a visually impaired user with
-          a cortical prosthesis would actually perceive. Each glowing dot is
-          a <strong className="text-foreground">phosphene</strong>, a spot of light
-          created by electrically stimulating neurons in the primary visual cortex (V1).
+          This is a simulation of what a visually impaired user with a cortical
+          prosthesis would actually perceive. Each glowing dot is
+          a <strong className="text-foreground">phosphene</strong>: a spot of light
+          produced by electrically stimulating neurons in the primary visual cortex (V1).
           Unlike natural vision, phosphene vision is composed of discrete points of
           light rather than a continuous image. The brightness of each phosphene
           corresponds to the stimulation current at that electrode. The goal of cortical
-          visual prostheses is to restore functional vision for individuals who are blind
+          visual prostheses is to restore functional sight for individuals who are blind
           due to damage to the eyes or optic nerves, bypassing the damaged pathway
           entirely and stimulating the occipital lobe directly.
         </p>
