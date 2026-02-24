@@ -132,7 +132,7 @@ export function OccipitalHeatmap3D({
     const scene = (mv as any)[sceneSym]
     if (!scene) return
 
-    console.log("[v0] Got internal Three.js scene:", scene)
+
 
     // Find the mesh in the scene
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,7 +154,7 @@ export function OccipitalHeatmap3D({
     const geo = brainMesh.geometry
     const positions = geo.getAttribute("position")
     const vertCount = positions.count
-    console.log("[v0] Found brain mesh with", vertCount, "vertices")
+
 
     // Create vertex color attribute if it doesn't exist
     let colorAttr = geo.getAttribute("color")
@@ -205,7 +205,7 @@ export function OccipitalHeatmap3D({
       if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
     }
 
-    console.log("[v0] Brain bounds:", { minX, maxX, minY, maxY, minZ, maxZ })
+
 
     meshDataRef.current = {
       colorAttr,
@@ -254,16 +254,16 @@ export function OccipitalHeatmap3D({
     const halfRows = gRows / 2
     const halfCols = gCols / 2
 
-    // V1 center at the occipital pole (POSTERIOR end of the brain)
-    // Model bounds: x[-76,59], y[-56,79], z[-87,85]
-    // Confirmed: z=-75 mapped to FRONTAL lobe, so z=+85 is POSTERIOR (occipital)
+    // V1 center at the occipital pole -- user-provided target point
     // Model axes: x=left(-)/right(+), y=inferior(-)/superior(+), z=anterior(-)/posterior(+)
-    // Occipital pole is at high positive z, medial x ~ -8, mid-height y ~ 12
-    const v1X = -8.0
-    const v1Y = 12.0
-    const v1Z = 78.0
-    const v1Radius = 35.0
-    const fadeStart = 25.0
+    // The occipital pole (foveal confluence) is at the user's target:
+    const v1X = -13.08
+    const v1Y = 10.93
+    const v1Z = 81.89
+    // V1 spans ~20-25mm from the occipital pole anteriorly along calcarine sulcus
+    // Use a tighter radius for anatomical accuracy
+    const v1Radius = 25.0
+    const fadeStart = 18.0
 
     const colors = colorAttr.array
 
@@ -278,33 +278,45 @@ export function OccipitalHeatmap3D({
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
       if (dist < v1Radius) {
-        // Retinotopic V1 mapping (Schwartz 1977, Horton & Hoyt 1991):
-        // - Eccentricity: distance from the occipital pole along z-axis
-        //   (pole = fovea, further anterior = peripheral vision)
-        // - Polar angle: y-axis maps dorsal(+)/ventral(-) banks of calcarine sulcus
-        //   dorsal V1 = lower visual field, ventral V1 = upper visual field
-        // - x-axis maps left/right visual hemifield
+        // Retinotopic V1 mapping based on Schwartz (1977) log-polar model
+        // and Horton & Hoyt (1991) calcarine sulcus anatomy:
+        //
+        // ECCENTRICITY (how far from center of gaze):
+        //   Mapped along the z-axis (anterior-posterior). The occipital pole
+        //   (z=81.89) is the foveal representation (center of gaze).
+        //   Moving anteriorly (decreasing z) = increasing eccentricity (peripheral vision).
+        //   Uses log-polar transform: cortical magnification factor is ~10x larger
+        //   at fovea than at 10deg eccentricity (Daniel & Whitteridge 1961).
+        //
+        // POLAR ANGLE (position around the visual field clock):
+        //   y-axis: dorsal bank (y > v1Y) = LOWER visual field
+        //           ventral bank (y < v1Y) = UPPER visual field
+        //   x-axis: left hemisphere (x < v1X) = RIGHT visual hemifield
+        //           right hemisphere (x > v1X) = LEFT visual hemifield
+        //   (contralateral representation, Horton & Hoyt 1991)
 
-        // Eccentricity from log-polar: z-distance from pole
-        const zDist = Math.abs(z - v1Z) / v1Radius
-        const logScale = 0.4
+        // Eccentricity: z-distance from pole, log-polar compressed
+        const zDelta = v1Z - z // positive = anterior from pole
+        const zNorm = Math.max(0, zDelta) / v1Radius
+        const logScale = 0.35
         const eccentricity =
-          (Math.exp(zDist / logScale) - 1) /
+          (Math.exp(zNorm / logScale) - 1) /
           (Math.exp(1 / logScale) - 1)
         const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
-        const ecc = eccentricity * maxEcc
+        const ecc = Math.min(eccentricity, 1.0) * maxEcc
 
-        // Polar angle from y (dorsal/ventral split at calcarine sulcus)
-        // y > v1Y = dorsal bank (lower visual field)
-        // y < v1Y = ventral bank (upper visual field)
-        const yNorm = (y - v1Y) / (yRange * 0.5)
-        const polarAngle = yNorm * Math.PI * 0.42
+        // Polar angle from y (calcarine sulcus split) and x (hemifield)
+        // Calcarine runs ~horizontally at y=v1Y
+        const yDelta = y - v1Y // positive = dorsal, negative = ventral
+        const xDelta = x - v1X // positive = right hemisphere
 
-        // x determines left/right hemifield
-        const xNorm = (x - v1X) / ((bounds.maxX - bounds.minX) * 0.5)
+        // Compute angle in the visual field
+        // atan2 gives us continuous polar angle from the y and x offsets
+        const corticalAngle = Math.atan2(yDelta, xDelta)
 
-        const visualX = ecc * Math.cos(polarAngle) * Math.sign(xNorm || 1)
-        const visualY = ecc * Math.sin(polarAngle)
+        // Map to grid: eccentricity = distance from center, angle = direction
+        const visualX = ecc * Math.cos(corticalAngle)
+        const visualY = ecc * Math.sin(corticalAngle)
 
         const gCol = Math.floor(halfCols + visualX)
         const gRow = Math.floor(halfRows - visualY)
@@ -400,7 +412,7 @@ export function OccipitalHeatmap3D({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const size = 120
+    const size = 70
     const rows = matrix.length
     const cols = matrix[0]?.length || 0
     const cellW = size / cols
@@ -463,8 +475,8 @@ export function OccipitalHeatmap3D({
             tone-mapping="neutral"
             exposure="0.6"
             shadow-intensity="0"
-            camera-target="-8m 12m 78m"
-            camera-orbit="180deg 90deg 150m"
+            camera-target="-13.08m 10.93m 81.89m"
+            camera-orbit="180deg 90deg 120m"
             min-camera-orbit="auto auto 10m"
             max-camera-orbit="auto auto 2000m"
             min-field-of-view="5deg"
@@ -491,10 +503,10 @@ export function OccipitalHeatmap3D({
         <div className="absolute bottom-2 right-2 z-10 rounded border border-border bg-[#060810]/90 p-1">
           <canvas
             ref={insetCanvasRef}
-            width={120}
-            height={120}
+            width={70}
+            height={70}
             className="block"
-            style={{ width: 120, height: 120 }}
+            style={{ width: 70, height: 70 }}
           />
           <p className="mt-0.5 text-center font-mono text-[8px] text-muted-foreground">
             2D Heatmap
