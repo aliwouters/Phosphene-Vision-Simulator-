@@ -405,59 +405,59 @@ export function OccipitalHeatmap3D({
     return () => cancelAnimationFrame(animId)
   }, [paintV1Heatmap])
 
-  // Paint the 2D inset heatmap with V1 retinotopic mapping
-  // Log-polar: fovea (center) at posterior pole, periphery at edges
-  // Dorsal bank (top) = lower visual field, Ventral bank (bottom) = upper visual field
-  // Calcarine sulcus runs horizontally through the middle
+  // Paint the 2D inset as a flat visual field heatmap with V1 retinotopic mapping
+  // This is the VISUAL FIELD representation (what the patient sees):
+  //   - Left side of image = left visual field (maps to RIGHT V1)
+  //   - Right side = right visual field (maps to LEFT V1)
+  //   - Top = upper visual field (maps to VENTRAL V1, below calcarine)
+  //   - Bottom = lower visual field (maps to DORSAL V1, above calcarine)
+  //   - Center = fovea (maps to occipital pole / posterior V1)
+  //   - Edges = periphery (maps to anterior V1)
+  // Log-polar compression: fovea over-represented (Schwartz 1977)
   useEffect(() => {
     const canvas = insetCanvasRef.current
     if (!canvas || !matrix || matrix.length === 0) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const size = 60
+    const w = 60
+    const h = 60
     const rows = matrix.length
     const cols = matrix[0]?.length || 0
-    const halfRows = rows / 2
-    const halfCols = cols / 2
-    const cx = size / 2
-    const cy = size / 2
-    const maxR = size / 2 - 2
 
     ctx.fillStyle = "#060810"
-    ctx.fillRect(0, 0, size, size)
+    ctx.fillRect(0, 0, w, h)
 
-    // Render pixel-by-pixel in log-polar retinotopic space
-    const step = 2
-    for (let py = 0; py < size; py += step) {
-      for (let px = 0; px < size; px += step) {
-        const dx = px - cx
-        const dy = py - cy
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist > maxR) continue
+    // Render pixel-by-pixel: each pixel in this 2D map = a position in V1
+    // x-axis = horizontal position on cortex (left V1 to right V1)
+    //   left edge (px=0) = anterior V1 left hemisphere = right peripheral vision
+    //   center (px=w/2) = posterior pole = fovea
+    //   right edge (px=w) = anterior V1 right hemisphere = left peripheral vision
+    // y-axis = vertical position on cortex (dorsal to ventral)
+    //   top (py=0) = dorsal bank = lower visual field
+    //   center (py=h/2) = calcarine sulcus = horizontal meridian
+    //   bottom (py=h) = ventral bank = upper visual field
 
-        // dist from center = eccentricity (log-polar: center=fovea, edge=periphery)
-        // Schwartz (1977): cortical distance ~ log(eccentricity)
-        // Invert: pixel distance -> visual field eccentricity
-        const distNorm = dist / maxR
+    const step = 1
+    for (let py = 0; py < h; py += step) {
+      for (let px = 0; px < w; px += step) {
+        // Normalize to [-1, 1] from center
+        const u = (px - w / 2) / (w / 2)  // -1 = left, +1 = right
+        const v = (py - h / 2) / (h / 2)  // -1 = top(dorsal), +1 = bottom(ventral)
+
+        // Log-polar: distance from center = eccentricity
+        // Apply inverse log-polar to get visual field position
         const logScale = 0.35
-        const eccentricity =
-          (Math.exp(distNorm / logScale) - 1) /
-          (Math.exp(1 / logScale) - 1)
-        const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
-        const ecc = Math.min(eccentricity, 1.0) * maxEcc
+        const absU = Math.abs(u)
+        const absV = Math.abs(v)
+        const eccU = (Math.exp(absU / logScale) - 1) / (Math.exp(1 / logScale) - 1)
+        const eccV = (Math.exp(absV / logScale) - 1) / (Math.exp(1 / logScale) - 1)
 
-        // Angle: polar angle in visual field
-        // Top of circle (dy<0) = dorsal = lower visual field
-        // Bottom (dy>0) = ventral = upper visual field
-        // Left/right = contralateral hemifields
-        const angle = Math.atan2(dy, dx)
-
-        const visualX = ecc * Math.cos(angle)
-        const visualY = ecc * Math.sin(angle)
-
-        const gCol = Math.floor(halfCols + visualX)
-        const gRow = Math.floor(halfRows + visualY)
+        // Map to grid coordinates
+        // u maps to columns: left of fovea = left visual field, right = right visual field
+        const gCol = Math.floor(cols / 2 + eccU * (cols / 2) * Math.sign(u))
+        // v maps to rows: top (dorsal, lower field) = bottom of camera, bottom (ventral, upper field) = top of camera
+        const gRow = Math.floor(rows / 2 + eccV * (rows / 2) * Math.sign(v))
 
         if (
           gRow >= 0 && gRow < rows &&
@@ -473,28 +473,36 @@ export function OccipitalHeatmap3D({
       }
     }
 
-    // Draw calcarine sulcus line (horizontal through center)
-    ctx.strokeStyle = "rgba(255,255,255,0.3)"
+    // Draw crosshair at fovea (center)
+    ctx.strokeStyle = "rgba(255,255,255,0.25)"
     ctx.lineWidth = 0.5
     ctx.setLineDash([2, 2])
+    // Horizontal = calcarine sulcus / horizontal meridian
     ctx.beginPath()
-    ctx.moveTo(cx - maxR, cy)
-    ctx.lineTo(cx + maxR, cy)
+    ctx.moveTo(0, h / 2)
+    ctx.lineTo(w, h / 2)
+    ctx.stroke()
+    // Vertical = vertical meridian
+    ctx.beginPath()
+    ctx.moveTo(w / 2, 0)
+    ctx.lineTo(w / 2, h)
     ctx.stroke()
     ctx.setLineDash([])
 
-    // Draw fovea marker at center
+    // Fovea dot
     ctx.beginPath()
-    ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+    ctx.arc(w / 2, h / 2, 1.5, 0, Math.PI * 2)
     ctx.fillStyle = "rgba(255,255,255,0.8)"
     ctx.fill()
 
-    // Circular outline for V1 boundary
-    ctx.beginPath()
-    ctx.arc(cx, cy, maxR, 0, Math.PI * 2)
-    ctx.strokeStyle = "rgba(0, 210, 160, 0.4)"
-    ctx.lineWidth = 1
-    ctx.stroke()
+    // Axis labels
+    ctx.fillStyle = "rgba(255,255,255,0.35)"
+    ctx.font = "5px monospace"
+    ctx.textAlign = "center"
+    ctx.fillText("L", 4, h / 2 + 2)
+    ctx.fillText("R", w - 4, h / 2 + 2)
+    ctx.fillText("U", w / 2, 6)
+    ctx.fillText("D", w / 2, h - 2)
   }, [matrix])
 
   // Attach load event to model-viewer element
@@ -540,7 +548,7 @@ export function OccipitalHeatmap3D({
             exposure="0.6"
             shadow-intensity="0"
             camera-target="-13.08m 10.93m 81.89m"
-            camera-orbit="180deg 75deg 250m"
+            camera-orbit="0deg 80deg 200m"
             min-camera-orbit="auto auto 10m"
             max-camera-orbit="auto auto 2000m"
             min-field-of-view="5deg"
