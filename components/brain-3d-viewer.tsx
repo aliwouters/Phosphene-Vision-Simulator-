@@ -609,19 +609,19 @@ export function OccipitalHeatmap3D({
       This heat map estimates where stimulation occurs on the brain and how strong
       it must be to produce the resulting phosphene map.
     </p>
-    <p className="mb-2 font-medium text-foreground text-[11px]">How the image is mapped to the cortex</p>
+    <p className="mb-2 text-[11px]">How the image is mapped to the cortex</p>
     <p className="mb-1.5">
       The simulator assigns each vertex on the 3D brain model a pixel from the
       camera grid. It does this by reproducing three key transformations found in
       the human visual pathway:
     </p>
-    <p className="mb-2 font-medium text-foreground text-[11px]">1. Contralateral Flip</p>
+    <p className="mb-2 text-[11px]">1. Contralateral Flip</p>
     <p className="mb-1.5">
       Vertices on the left cortex sample from the right side of the camera grid,
       and vice versa. This mirrors the optic chiasm, where nasal retinal fibers
       cross hemispheres so each side of V1 represents the opposite visual field.
     </p>
-    <p className="mb-2 font-medium text-foreground text-[11px]">2. Vertical Inversion</p>
+    <p className="mb-2 text-[11px]">2. Vertical Inversion</p>
     <p className="mb-1.5">
       Vertices above the calcarine sulcus (dorsal V1) sample from the bottom of
       the camera grid, corresponding to the lower visual field. Vertices below it
@@ -629,7 +629,7 @@ export function OccipitalHeatmap3D({
       This reflects the organization of the parietal and temporal optic radiation
       pathways.
     </p>
-    <p className="mb-2 font-medium text-foreground text-[11px]">3. Log-Polar Scaling</p>
+    <p className="mb-2 text-[11px]">3. Log-Polar Scaling</p>
     <p className="mb-1.5">
       Vertices near the occipital pole (posterior tip) map to the center of the
       camera grid, representing the fovea, while more anterior vertices map toward
@@ -637,7 +637,7 @@ export function OccipitalHeatmap3D({
       function so the fovea is overrepresented, matching the real cortex where
       roughly half of V1 surface area is devoted to the central 10{'\u00B0'} of vision.
     </p>
-    <p className="mb-2 font-medium text-foreground text-[11px]">The Heatmap</p>
+    <p className="mb-2 text-[11px]">The Heatmap</p>
     <p>
       Each vertex is colored based on its sampled stimulation current: blue for low
       values (around 2 {'\u03BCA'}), red and yellow for moderate levels, and white
