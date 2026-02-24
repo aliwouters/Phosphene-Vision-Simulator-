@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 
 interface OccipitalHeatmapProps {
   matrix: number[][]
@@ -8,7 +8,6 @@ interface OccipitalHeatmapProps {
   gridCols: number
 }
 
-// Declare the model-viewer custom element for TypeScript
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -35,32 +34,37 @@ declare global {
   }
 }
 
-// Heatmap color: cold blue -> cyan -> green -> yellow -> white-hot
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t
+}
+
+// Cold blue -> cyan -> green -> yellow -> white
 function heatColor(t: number): [number, number, number] {
   const v = Math.max(0, Math.min(1, t))
   if (v < 0.2) {
     const f = v / 0.2
-    return [lerp(8, 15, f), lerp(12, 60, f), lerp(60, 110, f)]
+    return [lerp(0.03, 0.06, f), lerp(0.05, 0.24, f), lerp(0.24, 0.43, f)]
   }
   if (v < 0.4) {
     const f = (v - 0.2) / 0.2
-    return [lerp(15, 20, f), lerp(60, 180, f), lerp(110, 170, f)]
+    return [lerp(0.06, 0.08, f), lerp(0.24, 0.71, f), lerp(0.43, 0.67, f)]
   }
   if (v < 0.6) {
     const f = (v - 0.4) / 0.2
-    return [lerp(20, 160, f), lerp(180, 230, f), lerp(170, 50, f)]
+    return [lerp(0.08, 0.63, f), lerp(0.71, 0.90, f), lerp(0.67, 0.20, f)]
   }
   if (v < 0.8) {
     const f = (v - 0.6) / 0.2
-    return [lerp(160, 255, f), lerp(230, 180, f), lerp(50, 30, f)]
+    return [lerp(0.63, 1.0, f), lerp(0.90, 0.71, f), lerp(0.20, 0.12, f)]
   }
   const f = (v - 0.8) / 0.2
-  return [lerp(255, 255, f), lerp(180, 245, f), lerp(30, 220, f)]
+  return [lerp(1.0, 1.0, f), lerp(0.71, 0.96, f), lerp(0.12, 0.86, f)]
 }
 
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
-}
+// Non-V1 brain surface color (dim neutral grey-blue)
+const BASE_R = 0.55
+const BASE_G = 0.55
+const BASE_B = 0.58
 
 export function OccipitalHeatmap3D({
   matrix,
@@ -68,23 +72,36 @@ export function OccipitalHeatmap3D({
   gridCols,
 }: OccipitalHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mvRef = useRef<HTMLElement | null>(null)
   const scriptLoaded = useRef(false)
   const [ready, setReady] = useState(false)
+  const meshDataRef = useRef<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    colorAttr: any
+    positions: Float32Array
+    vertCount: number
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mesh: any
+    bounds: {
+      minX: number; maxX: number
+      minY: number; maxY: number
+      minZ: number; maxZ: number
+    }
+  } | null>(null)
+  const matrixRef = useRef(matrix)
+  matrixRef.current = matrix
 
-  // Load the model-viewer script from CDN
+  // Load model-viewer script
   useEffect(() => {
     if (scriptLoaded.current) {
       setReady(true)
       return
     }
-
-    // Check if already loaded
     if (customElements.get("model-viewer")) {
       scriptLoaded.current = true
       setReady(true)
       return
     }
-
     const script = document.createElement("script")
     script.type = "module"
     script.src =
@@ -93,67 +110,277 @@ export function OccipitalHeatmap3D({
       scriptLoaded.current = true
       setReady(true)
     }
-    script.onerror = () => {
-      console.error("[v0] Failed to load model-viewer script")
-    }
     document.head.appendChild(script)
+  }, [])
 
-    return () => {
-      // Don't remove the script on cleanup -- it should persist
+  // Once model is loaded, access internal Three.js scene and set up vertex colors
+  const onModelLoad = useCallback(() => {
+    const mv = mvRef.current
+    if (!mv) return
+
+    // Access internal Three.js scene via Symbol
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const symbols = Object.getOwnPropertySymbols(mv as any)
+    const sceneSym = symbols.find((s) => s.description === "scene")
+    if (!sceneSym) {
+      console.log("[v0] Could not find scene symbol, trying alternative...")
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scene = (mv as any)[sceneSym]
+    if (!scene) return
+
+    console.log("[v0] Got internal Three.js scene:", scene)
+
+    // Find the mesh in the scene
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let brainMesh: any = null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    scene.traverse((child: any) => {
+      if (child.isMesh && child.geometry) {
+        if (!brainMesh || child.geometry.getAttribute("position").count > brainMesh.geometry.getAttribute("position").count) {
+          brainMesh = child
+        }
+      }
+    })
+
+    if (!brainMesh) {
+      console.log("[v0] No mesh found in scene")
+      return
+    }
+
+    const geo = brainMesh.geometry
+    const positions = geo.getAttribute("position")
+    const vertCount = positions.count
+    console.log("[v0] Found brain mesh with", vertCount, "vertices")
+
+    // Create vertex color attribute if it doesn't exist
+    let colorAttr = geo.getAttribute("color")
+    if (!colorAttr) {
+      const colors = new Float32Array(vertCount * 3)
+      // Initialize all to base color
+      for (let i = 0; i < vertCount; i++) {
+        colors[i * 3] = BASE_R
+        colors[i * 3 + 1] = BASE_G
+        colors[i * 3 + 2] = BASE_B
+      }
+
+      // We need to access Three.js Color buffer attribute constructor
+      // from the internal Three.js instance that model-viewer uses
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const THREE = (window as any).THREE || getThreeFromModelViewer(mv)
+
+      if (THREE && THREE.BufferAttribute) {
+        colorAttr = new THREE.BufferAttribute(colors, 3)
+      } else {
+        // Fallback: create attribute from the same constructor as position
+        const PositionConstructor = positions.constructor
+        colorAttr = new PositionConstructor(colors, 3)
+      }
+      geo.setAttribute("color", colorAttr)
+    }
+
+    // Enable vertex colors on the material
+    if (brainMesh.material) {
+      brainMesh.material.vertexColors = true
+      brainMesh.material.needsUpdate = true
+    }
+
+    // Copy position data
+    const posArray = new Float32Array(vertCount * 3)
+    let minX = Infinity, maxX = -Infinity
+    let minY = Infinity, maxY = -Infinity
+    let minZ = Infinity, maxZ = -Infinity
+    for (let i = 0; i < vertCount; i++) {
+      const x = positions.getX(i)
+      const y = positions.getY(i)
+      const z = positions.getZ(i)
+      posArray[i * 3] = x
+      posArray[i * 3 + 1] = y
+      posArray[i * 3 + 2] = z
+      if (x < minX) minX = x; if (x > maxX) maxX = x
+      if (y < minY) minY = y; if (y > maxY) maxY = y
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z
+    }
+
+    console.log("[v0] Brain bounds:", { minX, maxX, minY, maxY, minZ, maxZ })
+
+    meshDataRef.current = {
+      colorAttr,
+      positions: posArray,
+      vertCount,
+      mesh: brainMesh,
+      bounds: { minX, maxX, minY, maxY, minZ, maxZ },
+    }
+
+    // Do initial paint
+    paintV1Heatmap()
+  }, [])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function getThreeFromModelViewer(mv: any) {
+    // Try to get THREE from the model-viewer's internal renderer
+    try {
+      const symbols = Object.getOwnPropertySymbols(mv)
+      for (const sym of symbols) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const val = (mv as any)[sym]
+        if (val && val.renderer && val.renderer.threeRenderer) {
+          // We can get constructors from existing objects
+          return null // We'll use the position constructor fallback
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null
+  }
+
+  const paintV1Heatmap = useCallback(() => {
+    const data = meshDataRef.current
+    if (!data) return
+    const mat = matrixRef.current
+    if (!mat || mat.length === 0) return
+
+    const { colorAttr, positions, vertCount, mesh, bounds } = data
+    const { minY, maxY } = bounds
+    const yRange = maxY - minY
+
+    const gRows = mat.length
+    const gCols = mat[0]?.length || 0
+    const halfRows = gRows / 2
+    const halfCols = gCols / 2
+
+    // V1 center in original model coordinates
+    const v1X = -66.89
+    const v1Y = 8.88
+    const v1Z = -6.95
+    const v1Radius = 30.0
+    const fadeStart = 22.0
+
+    const colors = colorAttr.array
+
+    for (let i = 0; i < vertCount; i++) {
+      const x = positions[i * 3]
+      const y = positions[i * 3 + 1]
+      const z = positions[i * 3 + 2]
+
+      const dx = x - v1X
+      const dy = y - v1Y
+      const dz = z - v1Z
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+
+      if (dist < v1Radius) {
+        // Map distance from V1 center to eccentricity
+        const distNorm = dist / v1Radius
+        const logScale = 0.4
+        const eccentricity =
+          (Math.exp(distNorm / logScale) - 1) /
+          (Math.exp(1 / logScale) - 1)
+        const maxEcc = Math.sqrt(halfRows * halfRows + halfCols * halfCols)
+        const ecc = eccentricity * maxEcc
+
+        // y for dorsal/ventral
+        const yMid = (minY + maxY) / 2
+        const yNorm = (y - yMid) / (yRange * 0.5)
+        const angle = yNorm * Math.PI * 0.4
+
+        // z for left/right
+        const zNorm = (z - v1Z) / v1Radius
+
+        const visualX = ecc * Math.cos(angle) * Math.sign(zNorm || 1)
+        const visualY = ecc * Math.sin(angle)
+
+        const gCol = Math.floor(halfCols + visualX)
+        const gRow = Math.floor(halfRows - visualY)
+
+        if (
+          gRow >= 0 && gRow < gRows &&
+          gCol >= 0 && gCol < gCols &&
+          mat[gRow] && mat[gRow][gCol] !== undefined
+        ) {
+          const value = mat[gRow][gCol]
+          const normalized = (value - 2) / 75
+
+          let fade = 1.0
+          if (dist > fadeStart) {
+            fade = 1.0 - (dist - fadeStart) / (v1Radius - fadeStart)
+            fade = fade * fade
+          }
+
+          const [r, g, b] = heatColor(normalized)
+          colors[i * 3] = BASE_R + (r - BASE_R) * fade
+          colors[i * 3 + 1] = BASE_G + (g - BASE_G) * fade
+          colors[i * 3 + 2] = BASE_B + (b - BASE_B) * fade
+        } else {
+          colors[i * 3] = BASE_R
+          colors[i * 3 + 1] = BASE_G
+          colors[i * 3 + 2] = BASE_B
+        }
+      } else {
+        colors[i * 3] = BASE_R
+        colors[i * 3 + 1] = BASE_G
+        colors[i * 3 + 2] = BASE_B
+      }
+    }
+
+    colorAttr.needsUpdate = true
+    if (mesh.material) {
+      mesh.material.needsUpdate = true
+    }
+
+    // Request a re-render from model-viewer
+    const mv = mvRef.current
+    if (mv) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const symbols = Object.getOwnPropertySymbols(mv as any)
+      const needsRenderSym = symbols.find((s) => s.description === "needsRender")
+      if (needsRenderSym) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mv as any)[needsRenderSym]()
+      }
+      // Also try the public API
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((mv as any).requestUpdate) (mv as any).requestUpdate()
     }
   }, [])
 
-  // Draw heatmap legend on a canvas overlay showing what region maps where
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
+  // Repaint heatmap whenever matrix changes
   useEffect(() => {
-    if (!canvasRef.current || matrix.length === 0) return
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    paintV1Heatmap()
+  }, [matrix, gridRows, gridCols, paintV1Heatmap])
 
-    const w = canvas.width
-    const h = canvas.height
+  // Set up interval to keep repainting (since model-viewer manages its own render loop)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      paintV1Heatmap()
+    }, 100) // 10 fps update for the heatmap
+    return () => clearInterval(interval)
+  }, [paintV1Heatmap])
 
-    ctx.clearRect(0, 0, w, h)
-
-    // Draw a small retinotopic key in the corner
-    const keySize = Math.min(w, h) * 0.35
-    const keyX = w - keySize - 8
-    const keyY = h - keySize - 8
-    const cellW = keySize / gridCols
-    const cellH = keySize / gridRows
-
-    ctx.fillStyle = "rgba(0, 0, 0, 0.6)"
-    ctx.strokeStyle = "rgba(0, 210, 160, 0.3)"
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.roundRect(keyX - 4, keyY - 18, keySize + 8, keySize + 22, 4)
-    ctx.fill()
-    ctx.stroke()
-
-    ctx.font = "9px monospace"
-    ctx.fillStyle = "rgba(0, 210, 160, 0.7)"
-    ctx.textAlign = "left"
-    ctx.fillText("V1 heatmap", keyX, keyY - 6)
-
-    for (let row = 0; row < gridRows; row++) {
-      for (let col = 0; col < gridCols; col++) {
-        if (matrix[row] && matrix[row][col] !== undefined) {
-          const value = matrix[row][col]
-          const normalized = (value - 2) / 75
-          const [r, g, b] = heatColor(normalized)
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.9)`
-          ctx.fillRect(
-            keyX + col * cellW,
-            keyY + row * cellH,
-            cellW + 0.5,
-            cellH + 0.5
-          )
-        }
+  // Attach load event to model-viewer element
+  useEffect(() => {
+    if (!ready) return
+    const checkMv = () => {
+      const mv = containerRef.current?.querySelector("model-viewer")
+      if (mv) {
+        mvRef.current = mv
+        mv.addEventListener("load", onModelLoad)
+        // Also try in case already loaded
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((mv as any).loaded) onModelLoad()
       }
     }
-  }, [matrix, gridRows, gridCols])
+    // Small delay to ensure DOM is ready
+    const t = setTimeout(checkMv, 200)
+    return () => {
+      clearTimeout(t)
+      if (mvRef.current) {
+        mvRef.current.removeEventListener("load", onModelLoad)
+      }
+    }
+  }, [ready, onModelLoad])
 
   return (
     <div className="flex flex-col gap-3">
@@ -165,15 +392,15 @@ export function OccipitalHeatmap3D({
       </div>
       <div
         ref={containerRef}
-        className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#060810]"
+        className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#0a0c14]"
       >
         {ready ? (
           <model-viewer
             src="/models/full_brain_binary.glb"
             camera-controls
             tone-mapping="neutral"
-            exposure="0.47"
-            shadow-intensity="1"
+            exposure="0.6"
+            shadow-intensity="0"
             camera-target="-66.89m 8.88m -6.95m"
             camera-orbit="180deg 90deg 200m"
             min-camera-orbit="auto auto 10m"
@@ -184,9 +411,9 @@ export function OccipitalHeatmap3D({
             style={{
               width: "100%",
               height: "100%",
-              backgroundColor: "#060810",
+              backgroundColor: "#0a0c14",
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              ["--poster-color" as any]: "#060810",
+              ["--poster-color" as any]: "#0a0c14",
             }}
           />
         ) : (
@@ -196,12 +423,6 @@ export function OccipitalHeatmap3D({
             </p>
           </div>
         )}
-        <canvas
-          ref={canvasRef}
-          width={300}
-          height={225}
-          className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-        />
         <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/70 px-2 py-1 font-mono text-[10px] text-muted-foreground">
           drag to rotate / scroll to zoom
         </div>
@@ -211,22 +432,10 @@ export function OccipitalHeatmap3D({
         <div className="flex h-2 flex-1 overflow-hidden rounded-sm">
           <div className="flex-1" style={{ background: "rgb(8, 12, 60)" }} />
           <div className="flex-1" style={{ background: "rgb(15, 60, 110)" }} />
-          <div
-            className="flex-1"
-            style={{ background: "rgb(20, 180, 170)" }}
-          />
-          <div
-            className="flex-1"
-            style={{ background: "rgb(160, 230, 50)" }}
-          />
-          <div
-            className="flex-1"
-            style={{ background: "rgb(255, 180, 30)" }}
-          />
-          <div
-            className="flex-1"
-            style={{ background: "rgb(255, 245, 220)" }}
-          />
+          <div className="flex-1" style={{ background: "rgb(20, 180, 170)" }} />
+          <div className="flex-1" style={{ background: "rgb(160, 230, 50)" }} />
+          <div className="flex-1" style={{ background: "rgb(255, 180, 30)" }} />
+          <div className="flex-1" style={{ background: "rgb(255, 245, 220)" }} />
         </div>
         <span className="text-[10px]">high stimulus</span>
       </div>
