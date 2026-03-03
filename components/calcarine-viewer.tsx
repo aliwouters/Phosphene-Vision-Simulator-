@@ -72,15 +72,19 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
     const h = offscreen.height
     const midX = w / 2
 
-    // Find the V1 region bounding boxes per hemisphere by scanning black pixels
-    // A pixel is "V1 black" if R < 40, G < 40, B < 40
+    // Find the V1 region bounding boxes per hemisphere by scanning pink pixels
+    // The pink V1 regions have high red, moderate-to-low green, high-ish blue-ish pink
+    // Pink in the image is roughly R > 180, G < 120, B > 80 (magenta/hot-pink)
     const leftPixels: Array<{ x: number; y: number }> = []
     const rightPixels: Array<{ x: number; y: number }> = []
 
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const i = (y * w + x) * 4
-        if (data[i] < 40 && data[i + 1] < 40 && data[i + 2] < 40 && data[i + 3] > 200) {
+        const r = data[i], g = data[i + 1], b = data[i + 2]
+        // Detect pink: R is high, G is relatively low, B is moderate
+        const isPink = r > 160 && g < 140 && b > 60 && (r - g) > 60 && data[i + 3] > 200
+        if (isPink) {
           if (x < midX) {
             leftPixels.push({ x, y })
           } else {
@@ -175,28 +179,35 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
     const imgData = octx.getImageData(0, 0, v1Map.width, v1Map.height)
     const data = imgData.data
 
-    // Invert the base image for dark theme (white lines on dark bg)
+    // Remap the base image for dark theme:
+    // - White areas -> dark background
+    // - Black lines (sulci) -> white/light lines
+    // - Pink V1 areas -> dark placeholder (will be overwritten with heatmap)
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i], g = data[i + 1], b = data[i + 2]
-      // Make white areas dark, keep structure visible
       const lum = (r + g + b) / 3
-      if (lum > 200) {
+      const isPink = r > 160 && g < 140 && b > 60 && (r - g) > 60
+      if (isPink) {
+        // Pink V1 region -> dark, will be overwritten with heatmap
+        data[i] = 8
+        data[i + 1] = 13
+        data[i + 2] = 35
+      } else if (lum < 60) {
+        // Black lines (sulci outlines) -> white lines on dark bg
+        data[i] = 180
+        data[i + 1] = 185
+        data[i + 2] = 195
+      } else if (lum > 200) {
         // White background -> dark
         data[i] = 10
         data[i + 1] = 12
         data[i + 2] = 20
-      } else if (lum < 40) {
-        // Black regions (V1) -> will be overwritten with heatmap
-        // Keep them dark for now
-        data[i] = 8
-        data[i + 1] = 13
-        data[i + 2] = 35
       } else {
-        // Grey lines (sulci) -> subtle light lines
+        // Grey areas -> subtle
         const t = 1 - lum / 255
-        data[i] = Math.round(10 + t * 50)
-        data[i + 1] = Math.round(12 + t * 55)
-        data[i + 2] = Math.round(20 + t * 60)
+        data[i] = Math.round(10 + t * 80)
+        data[i + 1] = Math.round(12 + t * 85)
+        data[i + 2] = Math.round(20 + t * 90)
       }
     }
 
