@@ -265,7 +265,7 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-primary" />
         <h2 className="font-mono text-sm font-medium uppercase tracking-wider text-primary">
-          Calcarine Fissure Map
+          Calcarine Fissure Stimulation Map
         </h2>
       </div>
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-border bg-[#0a0c14]">
