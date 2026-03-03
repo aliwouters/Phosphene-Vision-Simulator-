@@ -163,10 +163,8 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
       </div>
       <LearnMore>
         <p>
-          A tiny camera built into a pair of glasses captures the visual scene in
-          real time, effectively replacing the function of the natural eye. An external
-          processor then reduces the video into a grid of brightness values that aligns
-          with the resolution of the implanted electrode array.
+          A camera built into a pair of glasses captures the world in real time,
+          effectively replacing the function of the natural eye.
         </p>
       </LearnMore>
     </div>

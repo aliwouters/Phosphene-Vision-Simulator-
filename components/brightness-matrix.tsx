@@ -89,14 +89,20 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
         <span>{'77\u00A0\u03BCA = bright'}</span>
       </div>
       <LearnMore>
+        <p className="mb-1.5">
+          An external processor simplifies the video into a grid of average brightness
+          values that matches the layout of the implanted electrode array. Each square
+          in the grid controls the electrical current sent to one electrode.
+        </p>
+        <p className="mb-1.5">
+          The electrodes stimulate neurons in the visual cortex (V1) using currents
+          between 2 and 77 microamps ({'\u03BCA'}). Lower currents create faint spots
+          of light (phosphenes), while higher currents create brighter ones.
+        </p>
         <p>
-          Each cell corresponds to the stimulation current delivered by a single
-          electrode. Direct stimulation of neurons in V1 typically operates
-          between 2 and 77 microamps ({'\u03BCA'}):
-          lower currents evoke faint phosphenes, while higher currents produce brighter
-          ones. The matrix maps the average luminance of each camera region to a matching
-          current level, transforming the visual scene into an electrical stimulation
-          pattern the brain can interpret.
+          By converting brightness in each part of the image into a specific current
+          level, the system turns the visual scene into a pattern of electrical signals
+          that the brain can understand.
         </p>
       </LearnMore>
     </div>
