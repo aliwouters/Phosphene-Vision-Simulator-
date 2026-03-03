@@ -289,16 +289,29 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
         <span className="text-[10px]">high stimulus</span>
       </div>
       <LearnMore>
+        <p className="mb-1.5">
+          This simulates the areas of the brain being stimulated and the level of
+          stimulation used to create the phosphene pattern. It is important to note
+          that every brain is different, so this mapping is not universal.
+        </p>
+        <p className="mb-1.5">
+          Each pixel in the V1 region is matched to a specific cell in the camera grid
+          using retinotopic coordinates. This mapping is based on three main principles:
+          eccentricity, contralateral projection, and vertical inversion.
+        </p>
+        <p className="mb-1.5">
+          Eccentricity describes how visual information moves from the fovea at the
+          occipital pole to the peripheral vision at the medial edge. The fovea occupies
+          a larger area of the cortex because it processes fine detail. This follows a
+          log-polar pattern of cortical magnification.
+        </p>
+        <p className="mb-1.5">
+          Contralateral projection means that the left visual cortex represents the right
+          visual field, and the right visual cortex represents the left visual field.
+        </p>
         <p>
-          This posterior view uses the actual brain anatomy as a base, with the
-          black V1 regions around the calcarine fissure replaced by a real-time
-          stimulation heatmap. Each pixel in the V1 region is mapped to a
-          corresponding camera grid cell using retinotopic coordinates:
-          eccentricity (fovea at the occipital pole to periphery at the medial
-          edge) with log-polar cortical magnification, contralateral projection
-          (left cortex maps right visual field), and vertical inversion (dorsal V1
-          above the calcarine maps the lower visual field, ventral V1 below it maps
-          the upper visual field).
+          Vertical inversion means that the upper part of V1 corresponds to the lower
+          visual field, while the lower part of V1 corresponds to the upper visual field.
         </p>
       </LearnMore>
     </div>
