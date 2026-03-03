@@ -268,12 +268,12 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
           Calcarine Fissure Stimulation Map
         </h2>
       </div>
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-border bg-[#0a0c14]">
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#0a0c14]">
         <canvas
           ref={canvasRef}
-          width={960}
-          height={540}
-          className="h-full w-full"
+          width={800}
+          height={600}
+          className="h-full w-full object-contain"
         />
       </div>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
