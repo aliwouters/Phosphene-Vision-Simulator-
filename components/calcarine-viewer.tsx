@@ -9,89 +9,87 @@ interface CalcarineViewerProps {
   gridCols: number
 }
 
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
-}
-
 function heatColor(t: number): [number, number, number] {
   const v = Math.max(0, Math.min(1, t))
   if (v < 0.2) {
     const f = v / 0.2
-    return [lerp(0.03, 0.06, f), lerp(0.05, 0.24, f), lerp(0.24, 0.43, f)]
+    return [0.03 + f * 0.03, 0.05 + f * 0.19, 0.24 + f * 0.19]
   }
   if (v < 0.4) {
     const f = (v - 0.2) / 0.2
-    return [lerp(0.06, 0.08, f), lerp(0.24, 0.71, f), lerp(0.43, 0.67, f)]
+    return [0.06 + f * 0.02, 0.24 + f * 0.47, 0.43 + f * 0.24]
   }
   if (v < 0.6) {
     const f = (v - 0.4) / 0.2
-    return [lerp(0.08, 0.63, f), lerp(0.71, 0.90, f), lerp(0.67, 0.20, f)]
+    return [0.08 + f * 0.55, 0.71 + f * 0.19, 0.67 - f * 0.47]
   }
   if (v < 0.8) {
     const f = (v - 0.6) / 0.2
-    return [lerp(0.63, 1.0, f), lerp(0.90, 0.71, f), lerp(0.20, 0.12, f)]
+    return [0.63 + f * 0.37, 0.90 - f * 0.19, 0.20 - f * 0.08]
   }
   const f = (v - 0.8) / 0.2
-  return [lerp(1.0, 1.0, f), lerp(0.71, 0.96, f), lerp(0.12, 0.86, f)]
+  return [1.0, 0.71 + f * 0.25, 0.12 + f * 0.74]
 }
 
-// Retinotopic zone definitions (12 zones as in the reference diagrams)
-// Each zone: visual field region -> cortical location
-// Zone numbering matches the Horton & Hoyt diagram:
-//   1-4: foveal (center), 5-8: parafoveal (mid), 9-12: peripheral (outer)
-//   Odd on left visual field side, even on right visual field side
-//   Upper visual field -> ventral (below calcarine), lower -> dorsal (above)
-interface Zone {
+// The visual field is divided into 4 quadrants x 3 eccentricity rings = 12 zones
+// Quadrants: upper-left, upper-right, lower-left, lower-right
+// Rings: foveal (center), parafoveal (mid), peripheral (outer)
+//
+// Zone numbering (matching Horton & Hoyt):
+//   1: foveal upper-left       2: foveal upper-right
+//   3: foveal lower-left       4: foveal lower-right
+//   5: parafoveal upper-left   6: parafoveal upper-right
+//   7: parafoveal lower-left   8: parafoveal lower-right
+//   9: peripheral upper-left  10: peripheral upper-right
+//  11: peripheral lower-left  12: peripheral lower-right
+//
+// Camera matrix: row 0 = top (upper VF), col 0 = camera-left
+// Display is CSS-mirrored (selfie), so camera-left = user's right visual field
+// Therefore: LOW col in matrix = RIGHT visual field, HIGH col = LEFT visual field
+
+interface VFZone {
   id: number
-  // Camera grid sampling region (normalized 0-1)
-  camRowStart: number
-  camRowEnd: number
-  camColStart: number
-  camColEnd: number
+  rowStart: number; rowEnd: number   // normalized camera rows (0=top, 1=bottom)
+  colStart: number; colEnd: number   // normalized camera cols (0=camera-left=right VF, 1=camera-right=left VF)
+  quadrant: "UL" | "UR" | "LL" | "LR"
+  ring: "foveal" | "para" | "periph"
 }
 
-// Visual field zones mapped to camera grid regions
-// Camera: row 0 = top (upper visual field), col 0 = left
-// CSS-mirrored display, so raw matrix col 0 = right side of world
-const ZONES: Zone[] = [
-  // Foveal zones (1-4): center of camera
-  { id: 1, camRowStart: 0.42, camRowEnd: 0.58, camColStart: 0.42, camColEnd: 0.50 },
-  { id: 2, camRowStart: 0.42, camRowEnd: 0.58, camColStart: 0.50, camColEnd: 0.58 },
-  { id: 3, camRowStart: 0.33, camRowEnd: 0.42, camColStart: 0.42, camColEnd: 0.58 },
-  { id: 4, camRowStart: 0.58, camRowEnd: 0.67, camColStart: 0.42, camColEnd: 0.58 },
-  // Parafoveal zones (5-8): mid ring
-  { id: 5, camRowStart: 0.25, camRowEnd: 0.42, camColStart: 0.25, camColEnd: 0.50 },
-  { id: 6, camRowStart: 0.25, camRowEnd: 0.42, camColStart: 0.50, camColEnd: 0.75 },
-  { id: 7, camRowStart: 0.58, camRowEnd: 0.75, camColStart: 0.25, camColEnd: 0.50 },
-  { id: 8, camRowStart: 0.58, camRowEnd: 0.75, camColStart: 0.50, camColEnd: 0.75 },
-  // Peripheral zones (9-12): outer ring
-  { id: 9, camRowStart: 0.0, camRowEnd: 0.25, camColStart: 0.0, camColEnd: 0.50 },
-  { id: 10, camRowStart: 0.0, camRowEnd: 0.25, camColStart: 0.50, camColEnd: 1.0 },
-  { id: 11, camRowStart: 0.75, camRowEnd: 1.0, camColStart: 0.0, camColEnd: 0.50 },
-  { id: 12, camRowStart: 0.75, camRowEnd: 1.0, camColStart: 0.50, camColEnd: 1.0 },
+const ZONES: VFZone[] = [
+  // Foveal (center 33%)
+  { id: 1, rowStart: 0.33, rowEnd: 0.50, colStart: 0.50, colEnd: 0.67, quadrant: "UL", ring: "foveal" },
+  { id: 2, rowStart: 0.33, rowEnd: 0.50, colStart: 0.33, colEnd: 0.50, quadrant: "UR", ring: "foveal" },
+  { id: 3, rowStart: 0.50, rowEnd: 0.67, colStart: 0.50, colEnd: 0.67, quadrant: "LL", ring: "foveal" },
+  { id: 4, rowStart: 0.50, rowEnd: 0.67, colStart: 0.33, colEnd: 0.50, quadrant: "LR", ring: "foveal" },
+  // Parafoveal (mid ring)
+  { id: 5, rowStart: 0.17, rowEnd: 0.33, colStart: 0.67, colEnd: 0.83, quadrant: "UL", ring: "para" },
+  { id: 6, rowStart: 0.17, rowEnd: 0.33, colStart: 0.17, colEnd: 0.33, quadrant: "UR", ring: "para" },
+  { id: 7, rowStart: 0.67, rowEnd: 0.83, colStart: 0.67, colEnd: 0.83, quadrant: "LL", ring: "para" },
+  { id: 8, rowStart: 0.67, rowEnd: 0.83, colStart: 0.17, colEnd: 0.33, quadrant: "LR", ring: "para" },
+  // Peripheral (outer ring)
+  { id: 9,  rowStart: 0.0, rowEnd: 0.17, colStart: 0.83, colEnd: 1.0, quadrant: "UL", ring: "periph" },
+  { id: 10, rowStart: 0.0, rowEnd: 0.17, colStart: 0.0,  colEnd: 0.17, quadrant: "UR", ring: "periph" },
+  { id: 11, rowStart: 0.83, rowEnd: 1.0, colStart: 0.83, colEnd: 1.0, quadrant: "LL", ring: "periph" },
+  { id: 12, rowStart: 0.83, rowEnd: 1.0, colStart: 0.0,  colEnd: 0.17, quadrant: "LR", ring: "periph" },
 ]
 
-function getZoneAverage(matrix: number[][], zone: Zone): number {
+function getZoneAvg(matrix: number[][], zone: VFZone): number {
   const rows = matrix.length
   const cols = matrix[0]?.length || 0
-  const r0 = Math.floor(zone.camRowStart * rows)
-  const r1 = Math.min(rows, Math.ceil(zone.camRowEnd * rows))
-  const c0 = Math.floor(zone.camColStart * cols)
-  const c1 = Math.min(cols, Math.ceil(zone.camColEnd * cols))
-  let sum = 0
-  let count = 0
+  const r0 = Math.floor(zone.rowStart * rows)
+  const r1 = Math.min(rows, Math.ceil(zone.rowEnd * rows))
+  const c0 = Math.floor(zone.colStart * cols)
+  const c1 = Math.min(cols, Math.ceil(zone.colEnd * cols))
+  let sum = 0, count = 0
   for (let r = r0; r < r1; r++) {
     for (let c = c0; c < c1; c++) {
-      if (matrix[r]?.[c] !== undefined) {
-        sum += matrix[r][c]
-        count++
-      }
+      if (matrix[r]?.[c] !== undefined) { sum += matrix[r][c]; count++ }
     }
   }
   return count > 0 ? sum / count : 0
 }
 
-export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerProps) {
+export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -102,408 +100,302 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
 
     const w = canvas.width
     const h = canvas.height
-
     ctx.clearRect(0, 0, w, h)
-
-    // Background
     ctx.fillStyle = "#0a0c14"
     ctx.fillRect(0, 0, w, h)
 
     const midX = w / 2
-    const midY = h / 2
-    const hemiW = w * 0.42 // hemisphere width
-    const hemiH = h * 0.42 // hemisphere height
-    const gap = w * 0.03   // gap between hemispheres
+    const midY = h * 0.48
+    const hemiW = w * 0.38
+    const hemiH = h * 0.40
+    const gap = w * 0.025
 
-    // Compute zone averages
-    const zoneValues: Record<number, number> = {}
-    for (const zone of ZONES) {
-      zoneValues[zone.id] = getZoneAverage(matrix, zone)
-    }
+    // Get zone averages
+    const zoneAvg: Record<number, number> = {}
+    for (const z of ZONES) { zoneAvg[z.id] = getZoneAvg(matrix, z) }
 
-    // Draw a hemisphere outline (posterior view, simplified brain shape)
-    function drawHemisphereOutline(cx: number, cy: number, isLeft: boolean) {
+    // ---- Draw hemisphere outline (posterior view) ----
+    function drawHemi(cx: number, isLeft: boolean) {
+      const dir = isLeft ? -1 : 1
       ctx.save()
       ctx.beginPath()
-      const xDir = isLeft ? -1 : 1
-      // Simplified posterior brain hemisphere shape
-      ctx.moveTo(cx, cy - hemiH)
-      // Top curve
+      // Top of brain
+      ctx.moveTo(cx, midY - hemiH)
+      // Lateral curve
       ctx.bezierCurveTo(
-        cx + xDir * hemiW * 0.6, cy - hemiH,
-        cx + xDir * hemiW, cy - hemiH * 0.5,
-        cx + xDir * hemiW, cy
+        cx + dir * hemiW * 0.55, midY - hemiH * 1.05,
+        cx + dir * hemiW * 1.05, midY - hemiH * 0.45,
+        cx + dir * hemiW, midY * 0.98
       )
-      // Bottom curve
+      // Lower lateral
       ctx.bezierCurveTo(
-        cx + xDir * hemiW, cy + hemiH * 0.5,
-        cx + xDir * hemiW * 0.6, cy + hemiH,
-        cx, cy + hemiH
+        cx + dir * hemiW * 0.95, midY + hemiH * 0.55,
+        cx + dir * hemiW * 0.55, midY + hemiH * 1.02,
+        cx, midY + hemiH
       )
-      // Medial side (straight-ish)
-      ctx.lineTo(cx, cy - hemiH)
+      // Medial (straight)
+      ctx.lineTo(cx, midY - hemiH)
       ctx.closePath()
-      ctx.strokeStyle = "rgba(255,255,255,0.15)"
-      ctx.lineWidth = 1
-      ctx.stroke()
-      ctx.restore()
-    }
-
-    // Draw calcarine fissure (horizontal line across V1 area)
-    function drawCalcarine(cx: number, cy: number, isLeft: boolean) {
-      const xDir = isLeft ? -1 : 1
-      ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(cx, cy)
-      ctx.lineTo(cx + xDir * hemiW * 0.85, cy)
-      ctx.strokeStyle = "rgba(255,255,255,0.5)"
-      ctx.lineWidth = 1.5
+      ctx.fillStyle = "rgba(255,255,255,0.025)"
+      ctx.fill()
+      ctx.strokeStyle = "rgba(255,255,255,0.18)"
+      ctx.lineWidth = 1.2
       ctx.stroke()
       ctx.restore()
 
-      // Label
+      // Sulcus detail lines
       ctx.save()
-      ctx.fillStyle = "rgba(255,255,255,0.4)"
-      ctx.font = `${Math.max(8, w * 0.022)}px monospace`
-      ctx.textAlign = isLeft ? "right" : "left"
-      const labelX = cx + xDir * hemiW * 0.88
-      ctx.fillText("calcarine", labelX, cy + 3)
-      ctx.restore()
-    }
-
-    // Draw V1 region with retinotopic zones
-    // V1 sits around the calcarine fissure at the medial/posterior occipital lobe
-    // Foveal zones (1-4) at the occipital pole (lateral tip)
-    // Peripheral zones (9-12) more anterior (medial side)
-    function drawV1Zones(cx: number, cy: number, isLeft: boolean) {
-      const xDir = isLeft ? -1 : 1
-
-      // V1 region shape parameters
-      const v1W = hemiW * 0.75
-      const v1H = hemiH * 0.65
-
-      // Zone layout for one hemisphere
-      // Left cortex sees RIGHT visual field (contralateral)
-      // Right cortex sees LEFT visual field
-      // Dorsal (above calcarine) = lower visual field
-      // Ventral (below calcarine) = upper visual field
-      //
-      // Per the Horton & Hoyt diagram:
-      // LEFT hemisphere: zones 4,8,12 (dorsal), zones 3,7,11 (ventral) - from RIGHT visual field
-      // RIGHT hemisphere: zones 10,6,2 (dorsal), zones 9,5,1 (ventral) - from LEFT visual field
-
-      interface ZoneShape {
-        zoneId: number
-        path: (ctx: CanvasRenderingContext2D) => void
+      ctx.strokeStyle = "rgba(255,255,255,0.06)"
+      ctx.lineWidth = 0.7
+      for (let i = 0; i < 4; i++) {
+        const yBase = midY - hemiH * 0.7 + i * hemiH * 0.25
+        const wobble = (i % 2 === 0 ? 1 : -1) * hemiH * 0.03
+        ctx.beginPath()
+        ctx.moveTo(cx + dir * hemiW * 0.08, yBase)
+        ctx.quadraticCurveTo(
+          cx + dir * hemiW * 0.5, yBase + wobble,
+          cx + dir * hemiW * 0.88, yBase - wobble * 0.5
+        )
+        ctx.stroke()
       }
+      // Below V1
+      for (let i = 0; i < 2; i++) {
+        const yBase = midY + hemiH * 0.45 + i * hemiH * 0.22
+        ctx.beginPath()
+        ctx.moveTo(cx + dir * hemiW * 0.12, yBase)
+        ctx.quadraticCurveTo(
+          cx + dir * hemiW * 0.5, yBase - hemiH * 0.025,
+          cx + dir * hemiW * 0.82, yBase + hemiH * 0.01
+        )
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
 
-      const zoneShapes: ZoneShape[] = []
+    // ---- V1 region: wedge-shaped around calcarine fissure ----
+    // Cortical mapping (posterior view):
+    //   LEFT cortex receives RIGHT visual field (contralateral)
+    //   RIGHT cortex receives LEFT visual field
+    //   Dorsal V1 (above calcarine) = lower visual field
+    //   Ventral V1 (below calcarine) = upper visual field
+    //   Occipital pole (lateral tip) = fovea
+    //   Anterior V1 (medial) = periphery
+    //
+    // Zone layout per hemisphere:
+    //   LEFT cortex dorsal:  4 (foveal-LR), 8 (para-LR), 12 (periph-LR)
+    //   LEFT cortex ventral: 2 (foveal-UR), 6 (para-UR), 10 (periph-UR)
+    //   RIGHT cortex dorsal: 3 (foveal-LL), 7 (para-LL), 11 (periph-LL)
+    //   RIGHT cortex ventral:1 (foveal-UL), 5 (para-UL),  9 (periph-UL)
 
-      // Foveal zones: near the occipital pole (outer tip, furthest from midline)
-      // Parafoveal: middle
-      // Peripheral: closest to midline (anterior V1)
+    function drawV1(cx: number, isLeft: boolean) {
+      const dir = isLeft ? -1 : 1
 
-      // Eccentricity rings (distance from occipital pole along fissure)
-      const eccBands = [
-        { start: 0.0, end: 0.33 },   // foveal
-        { start: 0.33, end: 0.66 },   // parafoveal
-        { start: 0.66, end: 1.0 },    // peripheral
+      // V1 dimensions: wedge from occipital pole to anterior
+      const v1Len = hemiW * 0.82  // length along calcarine
+      const v1MaxH = hemiH * 0.35 // max half-height at periphery
+
+      // Eccentricity bands (from pole = foveal to anterior = peripheral)
+      // Foveal gets more cortical space (cortical magnification)
+      const bands = [
+        { t0: 0.0, t1: 0.38 },  // foveal (over-represented)
+        { t0: 0.38, t1: 0.70 }, // parafoveal
+        { t0: 0.70, t1: 1.0 },  // peripheral
       ]
 
-      // Zone assignments per hemisphere
-      // Dorsal (above calcarine, y < cy) and Ventral (below calcarine, y > cy)
       let dorsalZones: number[]
       let ventralZones: number[]
 
       if (isLeft) {
         // Left cortex = RIGHT visual field
-        // Dorsal = lower right VF, Ventral = upper right VF
-        dorsalZones = [4, 8, 12]   // foveal, para, peripheral
-        ventralZones = [3, 7, 11]
+        dorsalZones = [4, 8, 12]    // lower-right VF: foveal, para, periph
+        ventralZones = [2, 6, 10]   // upper-right VF: foveal, para, periph
       } else {
         // Right cortex = LEFT visual field
-        dorsalZones = [2, 6, 10]
-        ventralZones = [1, 5, 9]
-      }
-
-      // Build zone shapes
-      for (let i = 0; i < 3; i++) {
-        const ecc0 = eccBands[i].start
-        const ecc1 = eccBands[i].end
-        const x0 = cx + xDir * (v1W * (1 - ecc1))
-        const x1 = cx + xDir * (v1W * (1 - ecc0))
-        const halfH0 = v1H * (0.3 + 0.7 * (1 - ecc0))
-        const halfH1 = v1H * (0.3 + 0.7 * (1 - ecc1))
-
-        // Dorsal zone (above calcarine)
-        zoneShapes.push({
-          zoneId: dorsalZones[i],
-          path: (c) => {
-            c.beginPath()
-            if (isLeft) {
-              c.moveTo(x1, cy)
-              c.lineTo(x1, cy - halfH1)
-              c.lineTo(x0, cy - halfH0)
-              c.lineTo(x0, cy)
-            } else {
-              c.moveTo(x0, cy)
-              c.lineTo(x0, cy - halfH0)
-              c.lineTo(x1, cy - halfH1)
-              c.lineTo(x1, cy)
-            }
-            c.closePath()
-          },
-        })
-
-        // Ventral zone (below calcarine)
-        zoneShapes.push({
-          zoneId: ventralZones[i],
-          path: (c) => {
-            c.beginPath()
-            if (isLeft) {
-              c.moveTo(x1, cy)
-              c.lineTo(x1, cy + halfH1)
-              c.lineTo(x0, cy + halfH0)
-              c.lineTo(x0, cy)
-            } else {
-              c.moveTo(x0, cy)
-              c.lineTo(x0, cy + halfH0)
-              c.lineTo(x1, cy + halfH1)
-              c.lineTo(x1, cy)
-            }
-            c.closePath()
-          },
-        })
-      }
-
-      // Draw each zone
-      for (const zs of zoneShapes) {
-        const val = zoneValues[zs.zoneId] || 0
-        const norm = (val - 2) / 75
-        const [r, g, b] = heatColor(norm)
-
-        ctx.save()
-        zs.path(ctx)
-        ctx.fillStyle = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`
-        ctx.fill()
-        ctx.strokeStyle = "rgba(255,255,255,0.2)"
-        ctx.lineWidth = 0.5
-        ctx.stroke()
-        ctx.restore()
-
-        // Zone number label
-        ctx.save()
-        zs.path(ctx)
-        // Find centroid of path bounding box for label placement
-        const bbox = getPathBBox(ctx)
-        ctx.restore()
-
-        if (bbox) {
-          ctx.save()
-          ctx.fillStyle = norm > 0.5 ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.6)"
-          ctx.font = `${Math.max(9, w * 0.025)}px monospace`
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.fillText(String(zs.zoneId), bbox.cx, bbox.cy)
-          ctx.restore()
-        }
-      }
-    }
-
-    function getPathBBox(_ctx: CanvasRenderingContext2D) {
-      // We'll compute centroids analytically based on the zone shape
-      // This is a simplification; we'll use the last drawn path's bounds
-      // Instead, we track coordinates in the zone shapes
-      return null as { cx: number; cy: number } | null
-    }
-
-    // Draw V1 zones with centroid labels using direct coordinate calculation
-    function drawV1ZonesWithLabels(cx: number, cy: number, isLeft: boolean) {
-      const xDir = isLeft ? -1 : 1
-      const v1W = hemiW * 0.75
-      const v1H = hemiH * 0.65
-
-      const eccBands = [
-        { start: 0.0, end: 0.33 },
-        { start: 0.33, end: 0.66 },
-        { start: 0.66, end: 1.0 },
-      ]
-
-      let dorsalZones: number[]
-      let ventralZones: number[]
-
-      if (isLeft) {
-        dorsalZones = [4, 8, 12]
-        ventralZones = [3, 7, 11]
-      } else {
-        dorsalZones = [2, 6, 10]
-        ventralZones = [1, 5, 9]
+        dorsalZones = [3, 7, 11]    // lower-left VF
+        ventralZones = [1, 5, 9]    // upper-left VF
       }
 
       for (let i = 0; i < 3; i++) {
-        const ecc0 = eccBands[i].start
-        const ecc1 = eccBands[i].end
-        const eccMid = (ecc0 + ecc1) / 2
-        const x0 = cx + xDir * (v1W * (1 - ecc1))
-        const x1 = cx + xDir * (v1W * (1 - ecc0))
-        const halfH0 = v1H * (0.3 + 0.7 * (1 - ecc0))
-        const halfH1 = v1H * (0.3 + 0.7 * (1 - ecc1))
-        const midX_zone = cx + xDir * (v1W * (1 - eccMid))
-        const halfHMid = v1H * (0.3 + 0.7 * (1 - eccMid))
+        const t0 = bands[i].t0
+        const t1 = bands[i].t1
+        const tMid = (t0 + t1) / 2
 
-        // Dorsal
-        const dorsalId = dorsalZones[i]
-        const dorsalVal = zoneValues[dorsalId] || 0
-        const dorsalNorm = (dorsalVal - 2) / 75
-        const [dr, dg, db] = heatColor(dorsalNorm)
+        // X positions along the calcarine (from pole outward)
+        const x0 = cx + dir * v1Len * (1 - t0)
+        const x1 = cx + dir * v1Len * (1 - t1)
 
-        ctx.beginPath()
-        if (isLeft) {
-          ctx.moveTo(x1, cy); ctx.lineTo(x1, cy - halfH1)
-          ctx.lineTo(x0, cy - halfH0); ctx.lineTo(x0, cy)
-        } else {
-          ctx.moveTo(x0, cy); ctx.lineTo(x0, cy - halfH0)
-          ctx.lineTo(x1, cy - halfH1); ctx.lineTo(x1, cy)
-        }
-        ctx.closePath()
-        ctx.fillStyle = `rgb(${Math.round(dr * 255)}, ${Math.round(dg * 255)}, ${Math.round(db * 255)})`
-        ctx.fill()
-        ctx.strokeStyle = "rgba(255,255,255,0.2)"
-        ctx.lineWidth = 0.5
-        ctx.stroke()
+        // V1 tapers: narrow at pole (fovea), wider at anterior (periphery)
+        const halfH0 = v1MaxH * (0.25 + 0.75 * t0)
+        const halfH1 = v1MaxH * (0.25 + 0.75 * t1)
+        const halfHMid = v1MaxH * (0.25 + 0.75 * tMid)
+        const xMid = cx + dir * v1Len * (1 - tMid)
 
-        // Label
-        ctx.fillStyle = dorsalNorm > 0.5 ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)"
-        ctx.font = `${Math.max(9, w * 0.024)}px monospace`
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
-        ctx.fillText(String(dorsalId), midX_zone, cy - halfHMid * 0.5)
-
-        // Ventral
-        const ventralId = ventralZones[i]
-        const ventralVal = zoneValues[ventralId] || 0
-        const ventralNorm = (ventralVal - 2) / 75
-        const [vr, vg, vb] = heatColor(ventralNorm)
+        // --- Dorsal zone (above calcarine = lower visual field) ---
+        const dId = dorsalZones[i]
+        const dVal = zoneAvg[dId] || 0
+        const dNorm = Math.max(0, Math.min(1, (dVal - 2) / 75))
+        const [dr, dg, db] = heatColor(dNorm)
 
         ctx.beginPath()
         if (isLeft) {
-          ctx.moveTo(x1, cy); ctx.lineTo(x1, cy + halfH1)
-          ctx.lineTo(x0, cy + halfH0); ctx.lineTo(x0, cy)
+          ctx.moveTo(x0, midY)
+          ctx.lineTo(x0, midY - halfH0)
+          ctx.lineTo(x1, midY - halfH1)
+          ctx.lineTo(x1, midY)
         } else {
-          ctx.moveTo(x0, cy); ctx.lineTo(x0, cy + halfH0)
-          ctx.lineTo(x1, cy + halfH1); ctx.lineTo(x1, cy)
+          ctx.moveTo(x1, midY)
+          ctx.lineTo(x1, midY - halfH1)
+          ctx.lineTo(x0, midY - halfH0)
+          ctx.lineTo(x0, midY)
         }
         ctx.closePath()
-        ctx.fillStyle = `rgb(${Math.round(vr * 255)}, ${Math.round(vg * 255)}, ${Math.round(vb * 255)})`
+        ctx.fillStyle = `rgb(${Math.round(dr * 255)},${Math.round(dg * 255)},${Math.round(db * 255)})`
         ctx.fill()
-        ctx.strokeStyle = "rgba(255,255,255,0.2)"
-        ctx.lineWidth = 0.5
+        ctx.strokeStyle = "rgba(255,255,255,0.18)"
+        ctx.lineWidth = 0.6
         ctx.stroke()
 
-        // Label
-        ctx.fillStyle = ventralNorm > 0.5 ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)"
-        ctx.font = `${Math.max(9, w * 0.024)}px monospace`
+        // Zone label
+        ctx.fillStyle = dNorm > 0.55 ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)"
+        ctx.font = `bold ${Math.max(9, w * 0.022)}px monospace`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
-        ctx.fillText(String(ventralId), midX_zone, cy + halfHMid * 0.5)
+        ctx.fillText(String(dId), xMid, midY - halfHMid * 0.50)
+
+        // --- Ventral zone (below calcarine = upper visual field) ---
+        const vId = ventralZones[i]
+        const vVal = zoneAvg[vId] || 0
+        const vNorm = Math.max(0, Math.min(1, (vVal - 2) / 75))
+        const [vr, vg, vb] = heatColor(vNorm)
+
+        ctx.beginPath()
+        if (isLeft) {
+          ctx.moveTo(x0, midY)
+          ctx.lineTo(x0, midY + halfH0)
+          ctx.lineTo(x1, midY + halfH1)
+          ctx.lineTo(x1, midY)
+        } else {
+          ctx.moveTo(x1, midY)
+          ctx.lineTo(x1, midY + halfH1)
+          ctx.lineTo(x0, midY + halfH0)
+          ctx.lineTo(x0, midY)
+        }
+        ctx.closePath()
+        ctx.fillStyle = `rgb(${Math.round(vr * 255)},${Math.round(vg * 255)},${Math.round(vb * 255)})`
+        ctx.fill()
+        ctx.strokeStyle = "rgba(255,255,255,0.18)"
+        ctx.lineWidth = 0.6
+        ctx.stroke()
+
+        // Zone label
+        ctx.fillStyle = vNorm > 0.55 ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)"
+        ctx.font = `bold ${Math.max(9, w * 0.022)}px monospace`
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText(String(vId), xMid, midY + halfHMid * 0.50)
       }
     }
 
-    // Left hemisphere (cx to the left of midline)
-    const leftCx = midX - gap / 2
-    const rightCx = midX + gap / 2
+    // ---- Calcarine fissure line ----
+    function drawCalcarine(cx: number, isLeft: boolean) {
+      const dir = isLeft ? -1 : 1
+      const v1Len = hemiW * 0.82
 
-    drawHemisphereOutline(leftCx, midY, true)
-    drawHemisphereOutline(rightCx, midY, false)
-
-    drawV1ZonesWithLabels(leftCx, midY, true)
-    drawV1ZonesWithLabels(rightCx, midY, false)
-
-    drawCalcarine(leftCx, midY, true)
-    drawCalcarine(rightCx, midY, false)
-
-    // Draw sulci/gyri lines for brain detail
-    function drawBrainDetail(cx: number, cy: number, isLeft: boolean) {
-      const xDir = isLeft ? -1 : 1
       ctx.save()
-      ctx.strokeStyle = "rgba(255,255,255,0.07)"
-      ctx.lineWidth = 0.5
+      ctx.beginPath()
+      ctx.moveTo(cx + dir * 2, midY)
+      ctx.lineTo(cx + dir * v1Len, midY)
+      ctx.strokeStyle = "rgba(255,255,255,0.55)"
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.restore()
 
-      // A few curved sulcus lines above V1
-      for (let i = 1; i <= 3; i++) {
-        const yOff = -hemiH * (0.3 + i * 0.18)
-        ctx.beginPath()
-        ctx.moveTo(cx + xDir * hemiW * 0.1, cy + yOff)
-        ctx.quadraticCurveTo(
-          cx + xDir * hemiW * 0.5, cy + yOff + hemiH * 0.05 * (i % 2 === 0 ? 1 : -1),
-          cx + xDir * hemiW * 0.85, cy + yOff + hemiH * 0.02
-        )
-        ctx.stroke()
-      }
-
-      // Below V1
-      for (let i = 1; i <= 2; i++) {
-        const yOff = hemiH * (0.3 + i * 0.2)
-        ctx.beginPath()
-        ctx.moveTo(cx + xDir * hemiW * 0.15, cy + yOff)
-        ctx.quadraticCurveTo(
-          cx + xDir * hemiW * 0.5, cy + yOff - hemiH * 0.04,
-          cx + xDir * hemiW * 0.8, cy + yOff
-        )
-        ctx.stroke()
-      }
-
+      // "Calcarine fissure" label
+      ctx.save()
+      ctx.fillStyle = "rgba(255,255,255,0.40)"
+      ctx.font = `${Math.max(7, w * 0.019)}px monospace`
+      ctx.textAlign = isLeft ? "right" : "left"
+      ctx.fillText("Calcarine fissure", cx + dir * (v1Len + 6), midY + 4)
       ctx.restore()
     }
 
-    drawBrainDetail(leftCx, midY, true)
-    drawBrainDetail(rightCx, midY, false)
+    // ---- Render everything ----
+    const leftCx = midX - gap / 2
+    const rightCx = midX + gap / 2
 
-    // Labels
+    // Hemisphere outlines
+    drawHemi(leftCx, true)
+    drawHemi(rightCx, false)
+
+    // V1 zones (drawn on top of hemisphere fill)
+    drawV1(leftCx, true)
+    drawV1(rightCx, false)
+
+    // Calcarine fissure lines
+    drawCalcarine(leftCx, true)
+    drawCalcarine(rightCx, false)
+
+    // ---- Labels ----
+    const labelFont = `${Math.max(10, w * 0.026)}px monospace`
+    const smallFont = `${Math.max(7, w * 0.017)}px monospace`
+
+    // Hemisphere labels
     ctx.fillStyle = "rgba(255,255,255,0.5)"
-    ctx.font = `${Math.max(10, w * 0.028)}px monospace`
+    ctx.font = labelFont
     ctx.textAlign = "center"
-    ctx.fillText("Left", leftCx - hemiW * 0.4, midY - hemiH - 8)
-    ctx.fillText("Right", rightCx + hemiW * 0.4, midY - hemiH - 8)
+    ctx.fillText("Left", leftCx - hemiW * 0.45, midY - hemiH - 10)
+    ctx.fillText("Right", rightCx + hemiW * 0.45, midY - hemiH - 10)
 
-    // "Primary visual cortex" label
-    ctx.fillStyle = "rgba(255,255,255,0.3)"
-    ctx.font = `${Math.max(8, w * 0.02)}px monospace`
-    ctx.fillText("Primary visual cortex", midX, midY + hemiH + 16)
+    // Primary visual cortex
+    ctx.fillStyle = "rgba(255,255,255,0.28)"
+    ctx.font = smallFont
+    ctx.textAlign = "center"
+    ctx.fillText("Primary visual cortex", midX, midY + hemiH + 20)
 
-    // Dorsal/Ventral labels
-    ctx.fillStyle = "rgba(255,255,255,0.25)"
-    ctx.font = `${Math.max(7, w * 0.018)}px monospace`
-    ctx.fillText("dorsal", midX, midY - hemiH * 0.35)
-    ctx.fillText("ventral", midX, midY + hemiH * 0.35)
+    // Dorsal / ventral labels at midline
+    ctx.fillStyle = "rgba(255,255,255,0.22)"
+    ctx.font = smallFont
+    ctx.textAlign = "center"
+    ctx.fillText("dorsal", midX, midY - hemiH * 0.32)
+    ctx.fillText("(lower VF)", midX, midY - hemiH * 0.32 + 11)
+    ctx.fillText("ventral", midX, midY + hemiH * 0.32)
+    ctx.fillText("(upper VF)", midX, midY + hemiH * 0.32 + 11)
 
-    // Fovea indicator arrow at occipital pole
-    const fontSize = Math.max(7, w * 0.018)
-    ctx.fillStyle = "rgba(255,255,255,0.3)"
-    ctx.font = `${fontSize}px monospace`
-    ctx.textAlign = "left"
-    ctx.fillText("fovea", rightCx + hemiW * 0.7, midY - 12)
-    ctx.beginPath()
-    ctx.moveTo(rightCx + hemiW * 0.68, midY - 8)
-    ctx.lineTo(rightCx + hemiW * 0.02, midY)
-    ctx.strokeStyle = "rgba(255,255,255,0.2)"
-    ctx.lineWidth = 0.5
-    ctx.setLineDash([2, 2])
-    ctx.stroke()
-    ctx.setLineDash([])
+    // Fovea labels with arrow
+    ctx.fillStyle = "rgba(255,255,255,0.30)"
+    ctx.font = smallFont
 
+    // Left hemisphere fovea
     ctx.textAlign = "right"
-    ctx.fillText("fovea", leftCx - hemiW * 0.7, midY - 12)
+    ctx.fillText("fovea", leftCx - hemiW * 0.75, midY - 10)
     ctx.beginPath()
-    ctx.moveTo(leftCx - hemiW * 0.68, midY - 8)
-    ctx.lineTo(leftCx - hemiW * 0.02, midY)
-    ctx.strokeStyle = "rgba(255,255,255,0.2)"
-    ctx.lineWidth = 0.5
+    ctx.moveTo(leftCx - hemiW * 0.73, midY - 6)
+    ctx.lineTo(leftCx - hemiW * 0.82 + hemiW * 0.02, midY)
+    ctx.strokeStyle = "rgba(255,255,255,0.18)"
+    ctx.lineWidth = 0.6
     ctx.setLineDash([2, 2])
     ctx.stroke()
     ctx.setLineDash([])
 
-  }, [matrix, gridRows, gridCols])
+    // Right hemisphere fovea
+    ctx.textAlign = "left"
+    ctx.fillText("fovea", rightCx + hemiW * 0.75, midY - 10)
+    ctx.beginPath()
+    ctx.moveTo(rightCx + hemiW * 0.73, midY - 6)
+    ctx.lineTo(rightCx + hemiW * 0.82 - hemiW * 0.02, midY)
+    ctx.strokeStyle = "rgba(255,255,255,0.18)"
+    ctx.lineWidth = 0.6
+    ctx.setLineDash([2, 2])
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Periphery labels at medial side
+    ctx.fillStyle = "rgba(255,255,255,0.20)"
+    ctx.font = smallFont
+    ctx.textAlign = "center"
+    ctx.fillText("periphery", midX, midY + 4)
+
+  }, [matrix])
 
   return (
     <div className="flex flex-col gap-3">
@@ -516,8 +408,8 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
       <div className="relative aspect-[5/3] w-full overflow-hidden rounded-lg border border-border bg-[#0a0c14]">
         <canvas
           ref={canvasRef}
-          width={500}
-          height={300}
+          width={600}
+          height={360}
           className="h-full w-full"
         />
       </div>
@@ -535,15 +427,16 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
       </div>
       <LearnMore>
         <p>
-          This 2D view shows the posterior aspect of both brain hemispheres with the
-          calcarine fissure marked as a horizontal line across each hemisphere. The 12
-          numbered zones represent how the visual field is mapped onto V1 following
-          retinotopic organization. Zones 1-4 (foveal) sit at the occipital pole, zones
-          5-8 (parafoveal) in the middle, and zones 9-12 (peripheral) toward the
-          anterior extent of V1. Above the calcarine fissure is dorsal V1 (representing
-          the lower visual field), below is ventral V1 (upper visual field). Each zone
-          is colored by the average stimulation intensity sampled from the corresponding
-          region of the camera feed.
+          This 2D posterior view shows both brain hemispheres with the calcarine
+          fissure marked as a horizontal line through V1. The 12 numbered zones
+          represent how the visual field maps onto V1 retinotopically. Zones at the
+          occipital pole (lateral tip) represent the fovea (1-4), while zones closer
+          to the midline represent the periphery (9-12). Dorsal V1 (above the calcarine)
+          receives the lower visual field via parietal optic radiations, ventral V1
+          (below) receives the upper visual field via temporal radiations. Left cortex
+          maps the right visual field and vice versa (contralateral). Each zone is
+          colored by the average stimulation intensity from its corresponding camera
+          region.
         </p>
       </LearnMore>
     </div>
