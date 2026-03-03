@@ -469,7 +469,7 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
     // "Primary visual cortex" label
     ctx.fillStyle = "rgba(255,255,255,0.3)"
     ctx.font = `${Math.max(8, w * 0.02)}px monospace`
-    ctx.fillText("Primary visual cortex", midX, cy + hemiH + 16)
+    ctx.fillText("Primary visual cortex", midX, midY + hemiH + 16)
 
     // Dorsal/Ventral labels
     ctx.fillStyle = "rgba(255,255,255,0.25)"
