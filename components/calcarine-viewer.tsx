@@ -258,37 +258,101 @@ export function CalcarineViewer({ matrix }: CalcarineViewerProps) {
     // Scale and draw to display canvas
     ctx.drawImage(offscreen, 0, 0, cw, ch)
 
-    // Add labels on top
+    // Add labels OUTSIDE the diagram with leader lines pointing in
     const midX = cw / 2
-    const fontSize = Math.max(10, cw * 0.022)
-    const smallFontSize = Math.max(8, cw * 0.016)
+    const fontSize = Math.max(10, cw * 0.02)
+    const smallFontSize = Math.max(8, cw * 0.015)
+    const lineColor = "rgba(255,255,255,0.2)"
+    const labelColor = "rgba(255,255,255,0.45)"
+    const accentColor = "rgba(0, 210, 160, 0.45)"
 
-    // "Left" and "Right" hemisphere labels
-    ctx.fillStyle = "rgba(255,255,255,0.45)"
+    ctx.lineWidth = 1
+
+    // "Left" and "Right" hemisphere labels at top
+    ctx.fillStyle = labelColor
     ctx.font = `${fontSize}px monospace`
     ctx.textAlign = "center"
-    ctx.fillText("Left", cw * 0.25, fontSize + 8)
-    ctx.fillText("Right", cw * 0.75, fontSize + 8)
+    ctx.fillText("Left", cw * 0.25, fontSize + 4)
+    ctx.fillText("Right", cw * 0.75, fontSize + 4)
 
-    // Calcarine fissure label (along the midline divide)
-    ctx.fillStyle = "rgba(0, 210, 160, 0.35)"
+    // Calcarine fissure label - positioned at bottom center with leader line up
+    const fissureLabelY = ch - 12
+    const fissureTargetY = ch * 0.51
+    ctx.fillStyle = accentColor
     ctx.font = `${smallFontSize}px monospace`
     ctx.textAlign = "center"
-    ctx.fillText("calcarine fissure", midX, ch * 0.52)
+    ctx.fillText("calcarine fissure", midX, fissureLabelY)
+    // Leader line from label up to the fissure area on left hemi
+    ctx.strokeStyle = accentColor
+    ctx.setLineDash([2, 3])
+    ctx.beginPath()
+    ctx.moveTo(midX - 40, fissureLabelY - smallFontSize - 2)
+    ctx.lineTo(cw * 0.3, fissureTargetY)
+    ctx.stroke()
+    // Leader line to right hemi fissure
+    ctx.beginPath()
+    ctx.moveTo(midX + 40, fissureLabelY - smallFontSize - 2)
+    ctx.lineTo(cw * 0.7, fissureTargetY)
+    ctx.stroke()
+    ctx.setLineDash([])
 
-    // Dorsal / ventral labels
-    ctx.fillStyle = "rgba(255,255,255,0.22)"
+    // Dorsal label - top right corner, leader line to dorsal region
+    const dorsalLabelX = cw - 10
+    const dorsalLabelY = ch * 0.18
+    ctx.fillStyle = labelColor
     ctx.font = `${smallFontSize}px monospace`
-    ctx.fillText("dorsal (lower VF)", midX, ch * 0.35)
-    ctx.fillText("ventral (upper VF)", midX, ch * 0.68)
-
-    // Fovea indicators
-    ctx.fillStyle = "rgba(255,255,255,0.25)"
-    ctx.font = `${smallFontSize}px monospace`
-    ctx.textAlign = "left"
-    ctx.fillText("fovea", 8, ch * 0.52)
     ctx.textAlign = "right"
-    ctx.fillText("fovea", cw - 8, ch * 0.52)
+    ctx.fillText("dorsal", dorsalLabelX, dorsalLabelY)
+    ctx.fillStyle = "rgba(255,255,255,0.22)"
+    ctx.fillText("(lower VF)", dorsalLabelX, dorsalLabelY + smallFontSize + 2)
+    ctx.strokeStyle = lineColor
+    ctx.setLineDash([2, 3])
+    ctx.beginPath()
+    ctx.moveTo(dorsalLabelX - 50, dorsalLabelY + 4)
+    ctx.lineTo(cw * 0.78, ch * 0.38)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Ventral label - bottom right corner, leader line to ventral region
+    const ventralLabelX = cw - 10
+    const ventralLabelY = ch * 0.78
+    ctx.fillStyle = labelColor
+    ctx.font = `${smallFontSize}px monospace`
+    ctx.textAlign = "right"
+    ctx.fillText("ventral", ventralLabelX, ventralLabelY)
+    ctx.fillStyle = "rgba(255,255,255,0.22)"
+    ctx.fillText("(upper VF)", ventralLabelX, ventralLabelY + smallFontSize + 2)
+    ctx.strokeStyle = lineColor
+    ctx.setLineDash([2, 3])
+    ctx.beginPath()
+    ctx.moveTo(ventralLabelX - 50, ventralLabelY - 2)
+    ctx.lineTo(cw * 0.78, ch * 0.62)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Fovea labels - far left and far right edges with leader lines
+    ctx.fillStyle = labelColor
+    ctx.font = `${smallFontSize}px monospace`
+    // Left fovea
+    ctx.textAlign = "left"
+    ctx.fillText("fovea", 6, ch * 0.42)
+    ctx.strokeStyle = lineColor
+    ctx.setLineDash([2, 3])
+    ctx.beginPath()
+    ctx.moveTo(6 + 32, ch * 0.42 + 2)
+    ctx.lineTo(cw * 0.12, ch * 0.48)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // Right fovea
+    ctx.textAlign = "right"
+    ctx.fillText("fovea", cw - 6, ch * 0.42)
+    ctx.strokeStyle = lineColor
+    ctx.setLineDash([2, 3])
+    ctx.beginPath()
+    ctx.moveTo(cw - 6 - 32, ch * 0.42 + 2)
+    ctx.lineTo(cw * 0.88, ch * 0.48)
+    ctx.stroke()
+    ctx.setLineDash([])
 
   }, [matrix, imageLoaded])
 
