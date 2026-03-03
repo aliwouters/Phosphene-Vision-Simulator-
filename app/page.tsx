@@ -4,6 +4,7 @@ import { useState, useCallback } from "react"
 import { CameraFeed } from "@/components/camera-feed"
 import { BrightnessMatrix } from "@/components/brightness-matrix"
 import { PhospheneGrid } from "@/components/phosphene-grid"
+import { CalcarineViewer } from "@/components/calcarine-viewer"
 import dynamic from "next/dynamic"
 
 const OccipitalHeatmap3D = dynamic(
@@ -125,6 +126,10 @@ export default function Page() {
         <BrightnessMatrix matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
         <PhospheneGrid matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
         <OccipitalHeatmap3D matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
+      </div>
+
+      <div className="mt-4">
+        <CalcarineViewer matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
       </div>
     </main>
   )
