@@ -181,11 +181,13 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
     ctx.fillText("dorsal / lower field", sidePad + 3, yTop + 8)
     ctx.fillText("ventral / upper field", sidePad + 3, yBot - 8)
 
-    // Fovea / periphery cues on the midline
+    // Fovea / periphery cues on the midline. Align the two foveal labels away
+    // from the center gap so they never collide.
     ctx.fillStyle = "rgba(200, 210, 225, 0.6)"
-    ctx.textAlign = "center"
-    ctx.fillText("fovea", leftX1, yBot + 14)
-    ctx.fillText("fovea", rightX0, yBot + 14)
+    ctx.textAlign = "right"
+    ctx.fillText("fovea", leftX1 - 2, yBot + 14)
+    ctx.textAlign = "left"
+    ctx.fillText("fovea", rightX0 + 2, yBot + 14)
     ctx.textAlign = "left"
     ctx.fillText("periphery", leftX0, yBot + 14)
     ctx.textAlign = "right"
