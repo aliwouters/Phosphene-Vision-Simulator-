@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react"
 import { LearnMore } from "./learn-more"
+import { lumaFromRgb, pixelLumaToNormalizedIntensity, toDisplayIntensity } from "@/lib/phosphene"
 
 interface CameraFeedProps {
   gridRows: number
@@ -53,15 +54,18 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
 
         const imageData = ctx.getImageData(x, y, w, h)
         const data = imageData.data
-        let totalBrightness = 0
+        let totalLuma = 0
         const pixelCount = data.length / 4
 
         for (let i = 0; i < data.length; i += 4) {
-          totalBrightness += (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114)
+          totalLuma += lumaFromRgb(data[i], data[i + 1], data[i + 2])
         }
 
-        const avgBrightness = totalBrightness / pixelCount
-        const value = Math.round(2 + (avgBrightness / 255) * 75)
+        // Camera pixel luma (0-255) -> normalized stimulation intensity (0-1)
+        // -> integer display index (0-100). See lib/phosphene.ts for why these
+        // are distinct quantities and are NOT electrical current.
+        const avgLuma = totalLuma / pixelCount
+        const value = toDisplayIntensity(pixelLumaToNormalizedIntensity(avgLuma))
         rowValues.push(value)
       }
       matrix.push(rowValues)
@@ -162,9 +166,17 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
         <span>{gridRows}x{gridCols} grid</span>
       </div>
       <LearnMore>
+        <p className="mb-1.5">
+          <span className="text-primary">Illustrative.</span> In head-mounted visual
+          prostheses, a camera on a pair of glasses captures the scene in real time and
+          an external processor converts it into stimulation commands. Here we use your
+          device camera to stand in for that input.
+        </p>
         <p>
-          A camera built into a pair of glasses captures the world in real time,
-          effectively replacing the function of the natural eye.
+          The overlaid grid shows how the frame is divided into cells. Each cell&apos;s
+          average brightness (Rec. 601 luma) becomes one stimulation value. The image is
+          shown mirrored for a natural &ldquo;selfie&rdquo; view; this mirror is cosmetic
+          and is not part of the retinotopic model.
         </p>
       </LearnMore>
     </div>

@@ -10,7 +10,7 @@ interface BrightnessMatrixProps {
 
 export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatrixProps) {
   const getColor = (value: number) => {
-    const normalized = (value - 2) / 75
+    const normalized = value / 100
     const curved = Math.pow(normalized, 0.6)
     const lightness = 0.12 + curved * 0.88
 
@@ -25,7 +25,7 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
   }
 
   const getCellBg = (value: number) => {
-    const normalized = (value - 2) / 75
+    const normalized = value / 100
     const bgLight = 0.12 + normalized * 0.06
     const bgChroma = normalized > 0.5 ? 0.01 + normalized * 0.02 : 0.005
     return `oklch(${bgLight} ${bgChroma} 200)`
@@ -46,8 +46,11 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-primary" />
         <h2 className="text-sm font-mono font-medium tracking-wider uppercase text-primary">
-          Amplitude Matrix
+          Stimulation Intensity
         </h2>
+        <span className="ml-auto rounded-sm border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+          approximation
+        </span>
       </div>
       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-secondary p-1">
         <div
@@ -85,24 +88,28 @@ export function BrightnessMatrix({ matrix, gridRows, gridCols }: BrightnessMatri
         </div>
       </div>
       <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
-        <span>{'2\u00A0\u03BCA = dark'}</span>
-        <span>{'77\u00A0\u03BCA = bright'}</span>
+        <span>0 = dark</span>
+        <span>100 = bright</span>
       </div>
       <LearnMore>
         <p className="mb-1.5">
-          An external processor simplifies the video into a grid of average brightness
-          values that matches the layout of the implanted electrode array. Each square
-          in the grid controls the electrical current sent to one electrode.
+          Each number is a <span className="text-primary">normalized stimulation
+          intensity</span> (0&ndash;100), derived from the average brightness of the
+          matching camera cell. It is a unitless index, not a physical measurement.
         </p>
         <p className="mb-1.5">
-          The electrodes stimulate neurons in the visual cortex (V1) using currents
-          between 2 and 77 microamps ({'\u03BCA'}). Lower currents create faint spots
-          of light (phosphenes), while higher currents create brighter ones.
+          Four quantities are deliberately kept separate here and must not be conflated:
+          (1) camera pixel brightness, (2) this normalized intensity index, (3) the
+          electrical current in microamperes (&micro;A) a real device would deliver, and
+          (4) the phosphene brightness a user would actually perceive.
         </p>
         <p>
-          By converting brightness in each part of the image into a specific current
-          level, the system turns the visual scene into a pattern of electrical signals
-          that the brain can understand.
+          This simulator models only (1) &rarr; (2). It does <span className="text-primary">
+          not</span> assign microampere values, because the relationship between image
+          brightness and a safe, effective current is device-, electrode-, and
+          subject-specific and is not established by published data. Perceived phosphene
+          brightness also saturates with current rather than rising linearly
+          (Bosking et al., 2017).
         </p>
       </LearnMore>
     </div>
