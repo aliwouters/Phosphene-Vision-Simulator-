@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   gridCellToVisualField,
   visualFieldToCortex,
+  cortexToVisualField,
   gridCellToCortex,
   corticalDistanceMm,
   corticalMagnification,
@@ -182,4 +183,67 @@ describe("grid-resolution changes keep coordinates in range", () => {
       }
     })
   }
+})
+
+describe("cortexToVisualField (inverse mapping for cortical sampling)", () => {
+  const flats = [0.1, 0.35, 0.5, 0.65, 0.9]
+
+  it("is a right inverse of visualFieldToCortex on the flatmap", () => {
+    for (const hemi of ["left", "right"] as const) {
+      for (const flatX of flats) {
+        for (const flatY of flats) {
+          const vf = cortexToVisualField(flatX, flatY, hemi)
+          const back = visualFieldToCortex(vf)
+          expect(back.flatX).toBeCloseTo(flatX, 5)
+          expect(back.flatY).toBeCloseTo(flatY, 5)
+          expect(back.hemisphere).toBe(hemi)
+        }
+      }
+    }
+  })
+
+  it("puts the fovea (flatX=0) at zero eccentricity and the origin", () => {
+    const vf = cortexToVisualField(0, 0.5, "left")
+    expect(vf.eccentricityDeg).toBeCloseTo(0, 6)
+    expect(vf.vfx).toBeCloseTo(0, 6)
+    expect(vf.vfy).toBeCloseTo(0, 6)
+  })
+
+  it("maps the far edge (flatX=1) to the maximum eccentricity", () => {
+    const vf = cortexToVisualField(1, 0.5, "right")
+    expect(vf.eccentricityDeg).toBeCloseTo(DEFAULT_MAX_ECCENTRICITY_DEG, 6)
+  })
+
+  it("increases eccentricity monotonically with flatX", () => {
+    let prev = -1
+    for (const flatX of [0, 0.25, 0.5, 0.75, 1]) {
+      const e = cortexToVisualField(flatX, 0.5, "left").eccentricityDeg
+      expect(e).toBeGreaterThan(prev)
+      prev = e
+    }
+  })
+
+  it("respects contralateral horizontal sign", () => {
+    // Left hemisphere represents the RIGHT visual field (vfx > 0).
+    expect(cortexToVisualField(0.5, 0.3, "left").vfx).toBeGreaterThan(0)
+    // Right hemisphere represents the LEFT visual field (vfx < 0).
+    expect(cortexToVisualField(0.5, 0.3, "right").vfx).toBeLessThan(0)
+  })
+
+  it("respects the dorsal/ventral vertical sign", () => {
+    // flatY < 0.5 is the dorsal bank = LOWER visual field (vfy < 0).
+    expect(cortexToVisualField(0.5, 0.2, "left").vfy).toBeLessThan(0)
+    // flatY > 0.5 is the ventral bank = UPPER visual field (vfy > 0).
+    expect(cortexToVisualField(0.5, 0.8, "left").vfy).toBeGreaterThan(0)
+  })
+
+  it("concentrates samples centrally: uniform flatX steps span growing eccentricity gaps", () => {
+    // Equal cortical steps near the pole cover a smaller eccentricity range than
+    // equal steps in the periphery -> central vision is sampled more finely.
+    const eNear = cortexToVisualField(0.2, 0.5, "left").eccentricityDeg
+    const eNearMinus = cortexToVisualField(0.1, 0.5, "left").eccentricityDeg
+    const eFar = cortexToVisualField(1.0, 0.5, "left").eccentricityDeg
+    const eFarMinus = cortexToVisualField(0.9, 0.5, "left").eccentricityDeg
+    expect(eNear - eNearMinus).toBeLessThan(eFar - eFarMinus)
+  })
 })

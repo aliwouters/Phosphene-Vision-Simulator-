@@ -38,7 +38,15 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
     overlayCanvas.width = video.videoWidth
     overlayCanvas.height = video.videoHeight
 
+    // Draw the frame HORIZONTALLY MIRRORED so the sampled matrix matches the
+    // mirrored ("selfie") view shown to the user. Keeping display and sampling
+    // in the same orientation is what makes the visual-field mapping correct:
+    // your right stays on the right of the image (right visual field -> left V1).
+    ctx.save()
+    ctx.translate(canvas.width, 0)
+    ctx.scale(-1, 1)
     ctx.drawImage(video, 0, 0)
+    ctx.restore()
 
     const cellW = video.videoWidth / gridCols
     const cellH = video.videoHeight / gridRows
@@ -154,7 +162,7 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
               animationRef.current = requestAnimationFrame(processFrame)
             }
           }}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover -scale-x-100"
         />
         <canvas ref={canvasRef} className="hidden" />
         <canvas
@@ -175,9 +183,10 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
         <p>
           The overlaid grid shows how the frame is divided into cells. Each cell&apos;s
           average brightness (Rec. 601 luma) becomes one stimulation value. The feed is
-          shown un-mirrored (world-facing, like a real prosthesis camera) so that the
-          left and right of the scene line up with the left and right of the visual field
-          in the maps below.
+          shown mirrored (&ldquo;selfie&rdquo; view) and, crucially, the grid is sampled
+          from that same mirrored frame &mdash; so moving to your right keeps you on the
+          right of the image (the right visual field), which projects to the left
+          hemisphere in the maps below.
         </p>
       </LearnMore>
     </div>

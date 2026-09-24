@@ -4,9 +4,8 @@ import { useRef, useEffect } from "react"
 import { LearnMore } from "./learn-more"
 import { fromDisplayIntensity } from "@/lib/phosphene"
 import {
-  gridCellToVisualField,
-  visualFieldToCortex,
-  corticalMagnification,
+  cortexToVisualField,
+  corticalDistanceMm,
   DEFAULT_MAX_ECCENTRICITY_DEG,
 } from "@/lib/retinotopy"
 
@@ -44,14 +43,19 @@ function rgb([r, g, b]: [number, number, number]) {
 }
 
 /**
- * Schematic V1 retinotopic map.
+ * Schematic V1 retinotopic map with eccentricity-dependent sampling.
  *
- * This is a forward projection of every camera grid cell onto a per-hemisphere
- * flatmap using lib/retinotopy (Horton & Hoyt, 1991 cortical magnification;
- * Schwartz, 1977 log-polar structure). It is a CONCEPTUAL schematic: the two
- * flattened hemispheres are drawn side by side with their foveal
- * representations (occipital poles) meeting at the center. It does NOT
- * reproduce any individual's folded cortical anatomy.
+ * Instead of plotting one dot per uniform camera cell (which makes the foveal
+ * representation look empty), we sample UNIFORMLY IN CORTICAL SPACE: an even
+ * lattice across each hemisphere's flatmap. Via cortexToVisualField, each
+ * lattice point corresponds to a visual-field location, and because the fovea
+ * claims a large cortical area (Horton & Hoyt, 1991 magnification; Schwartz,
+ * 1977 log-polar structure), those locations are dense near fixation and sparse
+ * in the periphery. This reflects the higher spatial resolution of central
+ * vision. Dots are SAMPLING LOCATIONS colored by scene brightness -- they are
+ * not neurons and not electrodes. Magnification is conveyed by the map geometry
+ * and the iso-eccentricity guides, kept visually distinct from sampling density.
+ * It is a CONCEPTUAL 2D schematic and does not reproduce folded anatomy.
  */
 export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -92,7 +96,7 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
     const rightX0 = sidePad + panelW + midGap // inner = fovea
     const rightX1 = W - sidePad // outer = periphery
 
-    const M0 = corticalMagnification(0)
+    const dMax = corticalDistanceMm(DEFAULT_MAX_ECCENTRICITY_DEG)
 
     // ---- Panel frames + guides ----
     const drawPanelGuides = (x0: number, x1: number, hemi: "left" | "right") => {
@@ -124,40 +128,75 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
     drawPanelGuides(leftX0, leftX1, "left")
     drawPanelGuides(rightX0, rightX1, "right")
 
-    // ---- Plot each grid cell at its cortical location ----
+    // ---- Eccentricity-dependent sampling ----
+    // Samples sit on an even lattice across each hemisphere's flatmap (uniform
+    // in CORTICAL space). Because the fovea occupies a large cortical area, this
+    // places many more samples in the central few degrees of the visual field
+    // than in the periphery -- reflecting the higher resolution of central
+    // vision. Each dot is a SAMPLING LOCATION, not a neuron or an electrode.
     const hasData = matrix.length > 0
-    for (let row = 0; row < gridRows; row++) {
-      for (let col = 0; col < gridCols; col++) {
-        const vf = gridCellToVisualField(row, col, gridRows, gridCols, DEFAULT_MAX_ECCENTRICITY_DEG)
-        const cortex = visualFieldToCortex(vf, DEFAULT_MAX_ECCENTRICITY_DEG)
+    const nRings = 15 // steps along the cortical (eccentricity) axis
+    const nArc = 19 // steps across the calcarine (polar-angle) axis
+    const dotR = Math.max(1.4, (Math.min(panelW, panelH) / Math.max(nRings, nArc)) * 0.34)
 
-        let sx: number
-        if (cortex.hemisphere === "left") {
-          sx = leftX1 - cortex.flatX * (leftX1 - leftX0) // fovea inner -> periphery outer
-        } else {
-          sx = rightX0 + cortex.flatX * (rightX1 - rightX0)
+    const sampleColor = (vfx: number, vfy: number): [number, number, number] => {
+      if (!hasData) return [0.09, 0.13, 0.24]
+      const fx = (vfx + 1) / 2 // field left..right -> matrix col
+      const fy = (-vfy + 1) / 2 // field up..down -> matrix row (top = up)
+      const col = Math.min(gridCols - 1, Math.max(0, Math.floor(fx * gridCols)))
+      const row = Math.min(gridRows - 1, Math.max(0, Math.floor(fy * gridRows)))
+      const v = matrix[row]?.[col]
+      if (v === undefined) return [0.09, 0.13, 0.24]
+      return heatColor(fromDisplayIntensity(v))
+    }
+
+    const plotHemisphere = (x0: number, x1: number, hemi: "left" | "right") => {
+      for (let i = 0; i < nRings; i++) {
+        const flatX = (i + 0.5) / nRings
+        for (let j = 0; j < nArc; j++) {
+          const flatY = (j + 0.5) / nArc
+          const vf = cortexToVisualField(flatX, flatY, hemi, DEFAULT_MAX_ECCENTRICITY_DEG)
+          // Fovea at the inner edge, periphery at the outer edge of each panel.
+          const sx = hemi === "left" ? x1 - flatX * (x1 - x0) : x0 + flatX * (x1 - x0)
+          const sy = yTop + flatY * panelH
+          ctx.beginPath()
+          ctx.arc(sx, sy, dotR, 0, Math.PI * 2)
+          ctx.fillStyle = rgb(sampleColor(vf.vfx, vf.vfy))
+          ctx.fill()
         }
-        const sy = yTop + cortex.flatY * panelH
-
-        // Dot radius reflects cortical magnification: foveal cells occupy more
-        // cortical area, so draw them larger (illustrative but derived from M(E)).
-        const magRatio = corticalMagnification(vf.eccentricityDeg) / M0
-        const baseR = Math.max(1.2, Math.min(panelW, panelH) / Math.max(gridRows, gridCols) * 0.5)
-        const radius = baseR * (0.55 + 0.9 * magRatio)
-
-        let color: [number, number, number]
-        if (hasData && matrix[row]?.[col] !== undefined) {
-          color = heatColor(fromDisplayIntensity(matrix[row][col]))
-        } else {
-          color = [0.08, 0.12, 0.22]
-        }
-
-        ctx.beginPath()
-        ctx.arc(sx, sy, radius, 0, Math.PI * 2)
-        ctx.fillStyle = rgb(color)
-        ctx.fill()
       }
     }
+    plotHemisphere(leftX0, leftX1, "left")
+    plotHemisphere(rightX0, rightX1, "right")
+
+    // ---- Iso-eccentricity guides (show cortical magnification, distinct from
+    // sampling density). Chips sit on the calcarine line between dot rows. ----
+    const eccGuides = [2, 20] // degrees of eccentricity
+    const drawEccGuides = (x0: number, x1: number, hemi: "left" | "right") => {
+      const midY = yTop + panelH * 0.5
+      for (const E of eccGuides) {
+        const flatX = corticalDistanceMm(E) / dMax
+        const sx = hemi === "left" ? x1 - flatX * (x1 - x0) : x0 + flatX * (x1 - x0)
+        ctx.strokeStyle = "rgba(150, 170, 200, 0.16)"
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(sx, yTop + 1)
+        ctx.lineTo(sx, yBot - 1)
+        ctx.stroke()
+
+        const label = `${E}\u00B0`
+        ctx.font = "7px monospace"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = "rgba(10, 12, 20, 0.9)"
+        ctx.fillRect(sx - tw / 2 - 2, midY - 5, tw + 4, 10)
+        ctx.fillStyle = "rgba(175, 195, 220, 0.9)"
+        ctx.fillText(label, sx, midY)
+      }
+    }
+    drawEccGuides(leftX0, leftX1, "left")
+    drawEccGuides(rightX0, rightX1, "right")
 
     // ---- Labels ----
     ctx.textBaseline = "middle"
@@ -220,12 +259,38 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
         </div>
         <span className="text-[10px]">high</span>
       </div>
+      <p className="font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+        Color = scene brightness sampled at each point. Dots are sampling locations
+        (uniform on cortex, dense in central vision), not neurons or electrodes.
+      </p>
       <LearnMore>
         <p className="mb-1.5">
-          <span className="text-primary">Schematic model.</span> Each camera cell is
-          projected onto a flattened map of primary visual cortex (V1) using three
-          established principles. Dot color shows the cell&apos;s stimulation intensity;
-          dot size grows toward the fovea to reflect cortical magnification.
+          <span className="text-primary">Schematic model.</span> Points are sampled on an
+          even lattice across a flattened map of primary visual cortex (V1). Color shows
+          scene brightness sampled at each point&apos;s visual-field location. Each dot is
+          a <span className="text-primary">sampling location</span> &mdash; not a neuron,
+          and not an implanted electrode.
+        </p>
+        <p className="mb-1.5">
+          <span className="text-primary">Why central vision gets more samples:</span> the
+          fovea is allocated a hugely disproportionate share of cortex, so spacing samples
+          evenly on the cortex places far more of them in the central few degrees of the
+          visual field than in the periphery &mdash; reflecting the higher spatial
+          resolution of central vision. The vertical guides mark 2&deg; and 20&deg; of
+          eccentricity: the central ~2&deg; already claims roughly a third of the cortical
+          distance from the pole.
+        </p>
+        <p className="mb-1.5">
+          <span className="text-primary">Sampling vs. magnification vs. electrodes:</span>{" "}
+          these are kept deliberately separate. Sampling density is shown by the dots,
+          cortical magnification by the map geometry and eccentricity guides, and neither
+          represents physical electrode or neuron density.
+        </p>
+        <p className="mb-1.5">
+          <span className="text-primary">Cortical magnification:</span> we use the human
+          function M(E) = 17.3 / (E + 0.75) mm/deg, so cortical distance from the occipital
+          pole is d(E) = 17.3 &middot; ln(1 + E/0.75) mm (Horton &amp; Hoyt, 1991;
+          log-polar structure from Schwartz, 1977).
         </p>
         <p className="mb-1.5">
           <span className="text-primary">Contralateral organization:</span> the left
@@ -237,19 +302,13 @@ export function CalcarineViewer({ matrix, gridRows, gridCols }: CalcarineViewerP
           sulcus (dashed line) separates the map. The upper visual field maps to the
           ventral bank and the lower visual field to the dorsal bank.
         </p>
-        <p className="mb-1.5">
-          <span className="text-primary">Cortical magnification:</span> central vision
-          occupies far more cortex per degree than the periphery. We use the human
-          magnification function M(E) = 17.3 / (E + 0.75) mm/deg, so cortical distance
-          from the occipital pole is d(E) = 17.3 &middot; ln(1 + E/0.75) mm
-          (Horton &amp; Hoyt, 1991; log-polar structure from Schwartz, 1977).
-        </p>
         <p>
           <span className="text-primary">Limitation:</span> this is a 2D conceptual
-          schematic, not a reconstruction of folded anatomy. The two hemispheres are
-          drawn side by side with their foveal representations meeting at the center;
-          real V1 lies on the medial walls of both occipital lobes. Parameters are
-          population averages and the assumed field of view is a simulation choice.
+          schematic, not a reconstruction of folded anatomy or a prediction of a
+          prosthesis user&apos;s percept. The two hemispheres are drawn side by side with
+          their foveal representations meeting at the center; real V1 lies on the medial
+          walls of both occipital lobes. Parameters are population averages and the
+          assumed field of view is a simulation choice.
         </p>
       </LearnMore>
     </div>

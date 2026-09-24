@@ -16,10 +16,14 @@
  *   - col 0   = LEFT of the raw camera image
  *
  * Visual field (what the eye/camera is "looking at"):
- *   - We map image columns left->right to visual-field left->right, and image
- *     rows top->bottom to visual-field up->down. The UI applies a cosmetic
- *     horizontal ("selfie") mirror for display only; that mirror is NOT part of
- *     the scientific model and is ignored here so the mapping stays well defined.
+ *   - The camera feed is shown as a horizontally mirrored ("selfie") view, and
+ *     the brightness matrix is sampled from that SAME mirrored frame, so matrix
+ *     columns match exactly what the user sees on screen. We map matrix columns
+ *     left->right to visual-field left->right, and matrix rows top->bottom to
+ *     visual-field up->down. Because the pipeline is mirrored consistently,
+ *     moving to your right keeps you on the right of the image, i.e. the RIGHT
+ *     visual field, which (correctly, contralaterally) projects to the LEFT
+ *     hemisphere.
  *   - vfx > 0 : RIGHT visual field ; vfx < 0 : LEFT visual field
  *   - vfy > 0 : UPPER visual field ; vfy < 0 : LOWER visual field
  *   - The origin (0, 0) is the fovea / point of fixation (image center).
@@ -184,6 +188,48 @@ export function visualFieldToCortex(
   const flatY = bank === "ventral" ? 0.5 + offset : 0.5 - offset
 
   return { hemisphere, bank, corticalDistanceMm: dMm, flatX, flatY }
+}
+
+/**
+ * Inverse of {@link visualFieldToCortex}: given a schematic cortical location
+ * (flatX, flatY on a per-hemisphere flatmap) recover the visual-field point it
+ * represents. This is what lets us sample the visual field UNIFORMLY IN CORTICAL
+ * SPACE: stepping evenly across (flatX, flatY) yields visual-field locations
+ * that are dense near the fovea and sparse in the periphery, in proportion to
+ * cortical magnification. That is the log-polar / cortical-sampling model
+ * (Schwartz, 1977) and it is why central vision is sampled at higher resolution.
+ *
+ *   flatX: 0 = occipital pole (fovea) .. 1 = anterior V1 (far periphery)
+ *   flatY: 0.5 = calcarine (horizontal meridian); <0.5 dorsal/lower field,
+ *          >0.5 ventral/upper field; 0 and 1 = the vertical-meridian lips.
+ */
+export function cortexToVisualField(
+  flatX: number,
+  flatY: number,
+  hemisphere: Hemisphere,
+  maxEccentricityDeg: number = DEFAULT_MAX_ECCENTRICITY_DEG,
+): VisualFieldPoint {
+  const fx = Math.max(0, Math.min(1, flatX))
+  const fy = Math.max(0, Math.min(1, flatY))
+
+  // Invert d(E) = K * ln(1 + E/E2)  ->  E = E2 * (exp(d/K) - 1).
+  const dMax = corticalDistanceMm(maxEccentricityDeg)
+  const dMm = fx * dMax
+  const eRaw = CORTICAL_MAGNIFICATION_E2 * (Math.exp(dMm / CORTICAL_MAGNIFICATION_K) - 1)
+  const eccentricityDeg = Math.max(0, Math.min(maxEccentricityDeg, eRaw))
+  const rNorm = eccentricityDeg / maxEccentricityDeg
+
+  // Recover the polar angle within the quadrant from the vertical offset.
+  const beta = (Math.abs(fy - 0.5) / 0.5) * (Math.PI / 2) // 0 .. PI/2
+  const magX = rNorm * Math.cos(beta)
+  const magY = rNorm * Math.sin(beta)
+
+  // Hemisphere fixes the horizontal sign (left hemi <-> right field), the bank
+  // (flatY) fixes the vertical sign (ventral/upper vs dorsal/lower).
+  const vfx = hemisphere === "left" ? magX : -magX
+  const vfy = fy > 0.5 ? magY : -magY
+
+  return { vfx, vfy, eccentricityDeg, polarAngleRad: Math.atan2(vfy, vfx) }
 }
 
 /** Convenience: grid cell straight through to a cortical point. */
