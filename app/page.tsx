@@ -84,32 +84,34 @@ export default function Page() {
             <label className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
               Device-inspired grids
             </label>
-            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Device-inspired grid preset">
-              {DEVICE_PRESETS.map((preset) => (
-                <button
-                  key={preset.name}
-                  role="radio"
-                  aria-checked={activePreset === preset.name}
-                  onClick={() => handlePreset(preset)}
-                  title={preset.note}
-                  className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
-                    activePreset === preset.name
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:bg-border hover:text-foreground"
-                  }`}
-                >
-                  {preset.name}
-                  <span className="ml-1 opacity-50">
-                    {preset.rows}x{preset.cols}
-                  </span>
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Device-inspired grid preset">
+                {DEVICE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.name}
+                    role="radio"
+                    aria-checked={activePreset === preset.name}
+                    onClick={() => handlePreset(preset)}
+                    title={preset.note}
+                    className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
+                      activePreset === preset.name
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-muted-foreground hover:bg-border hover:text-foreground"
+                    }`}
+                  >
+                    {preset.name}
+                    <span className="ml-1 opacity-50">
+                      {preset.rows}x{preset.cols}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="max-w-xs font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+                Presets only set the grid resolution to echo each device&apos;s electrode or
+                pixel count. They do not reproduce a device&apos;s layout, stimulation, or
+                perceived vision. Hover for sources.
+              </p>
             </div>
-            <p className="max-w-md font-mono text-[10px] leading-relaxed text-muted-foreground/70">
-              Presets only set the grid resolution to echo each device&apos;s electrode or
-              pixel count. They do not reproduce a device&apos;s layout, stimulation, or
-              perceived vision. Hover for sources.
-            </p>
           </div>
         </div>
       </header>
