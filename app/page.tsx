@@ -106,7 +106,7 @@ export default function Page() {
                   </button>
                 ))}
               </div>
-              <p className="max-w-xs font-mono text-[10px] leading-relaxed text-muted-foreground/70">
+              <p className="max-w-xl flex-1 font-mono text-[10px] leading-relaxed text-muted-foreground/70">
                 Presets only set the grid resolution to echo each device&apos;s electrode or
                 pixel count. They do not reproduce a device&apos;s layout, stimulation, or
                 perceived vision. Hover for sources.
