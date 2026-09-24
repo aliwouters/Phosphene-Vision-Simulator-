@@ -154,12 +154,12 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
               animationRef.current = requestAnimationFrame(processFrame)
             }
           }}
-          className="absolute inset-0 h-full w-full object-cover -scale-x-100"
+          className="absolute inset-0 h-full w-full object-cover"
         />
         <canvas ref={canvasRef} className="hidden" />
         <canvas
           ref={overlayCanvasRef}
-          className="absolute inset-0 h-full w-full object-cover -scale-x-100 pointer-events-none"
+          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
         />
       </div>
       <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
@@ -174,9 +174,10 @@ export function CameraFeed({ gridRows, gridCols, onMatrixUpdate }: CameraFeedPro
         </p>
         <p>
           The overlaid grid shows how the frame is divided into cells. Each cell&apos;s
-          average brightness (Rec. 601 luma) becomes one stimulation value. The image is
-          shown mirrored for a natural &ldquo;selfie&rdquo; view; this mirror is cosmetic
-          and is not part of the retinotopic model.
+          average brightness (Rec. 601 luma) becomes one stimulation value. The feed is
+          shown un-mirrored (world-facing, like a real prosthesis camera) so that the
+          left and right of the scene line up with the left and right of the visual field
+          in the maps below.
         </p>
       </LearnMore>
     </div>
