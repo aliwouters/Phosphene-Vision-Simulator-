@@ -129,13 +129,7 @@ export default function Page() {
           scene onto primary visual cortex. It is <span className="text-foreground">not</span>{" "}
           a validated prediction of artificial vision and{" "}
           <span className="text-foreground">not</span> a tool for choosing safe
-          stimulation parameters. Panels are labeled{" "}
-          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">approximation</span>{" "}
-          (math),{" "}
-          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">schematic</span>{" "}
-          (conceptual), or{" "}
-          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">illustrative</span>{" "}
-          (for legibility). See the README for equations, assumptions, and references.
+          stimulation parameters.
         </p>
       </footer>
     </main>
