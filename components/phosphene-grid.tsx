@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react"
 import { LearnMore } from "./learn-more"
+import { fromDisplayIntensity, illustrativePhospheneRadiusFactor } from "@/lib/phosphene"
 
 interface PhospheneGridProps {
   matrix: number[][]
@@ -40,11 +41,11 @@ export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps
         if (!matrix[row] || matrix[row][col] === undefined) continue
 
         const value = matrix[row][col]
-        const normalized = (value - 2) / 75
+        const normalized = fromDisplayIntensity(value)
 
         const cx = col * cellW + cellW / 2
         const cy = row * cellH + cellH / 2
-        const radius = maxRadius * (0.3 + normalized * 0.7)
+        const radius = maxRadius * illustrativePhospheneRadiusFactor(normalized)
 
         const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius)
 
@@ -83,6 +84,9 @@ export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps
         <h2 className="text-sm font-mono font-medium tracking-wider uppercase text-primary">
           Phosphene Map
         </h2>
+        <span className="ml-auto rounded-sm border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+          illustrative
+        </span>
       </div>
       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-[#080a0f]">
         <canvas
@@ -103,13 +107,19 @@ export function PhospheneGrid({ matrix, gridRows, gridCols }: PhospheneGridProps
       </div>
       <LearnMore>
         <p className="mb-1.5">
-          This shows what a visually impaired person using a cortical prosthesis might
-          see. Each dot is a phosphene, which is a small spot of light created by
-          stimulating neurons in the V1 area of the occipital lobe.
+          A <span className="text-primary">phosphene</span> is a spot of light evoked by
+          stimulating visual neurons. Cortical prosthesis users report that artificial
+          vision is made of discrete points of light rather than a smooth, continuous
+          image (Brindley &amp; Lewin, 1968; Fernández et al., 2021).
         </p>
         <p>
-          Unlike normal vision, this type of vision is made up of separate points of
-          light instead of a smooth, continuous image.
+          This grid is an <span className="text-primary">illustrative</span> sketch of
+          that idea: one dot per stimulation cell, brighter and larger where intensity is
+          higher. It is <span className="text-primary">not</span> a prediction of what any
+          individual would perceive. Real phosphenes vary in size, shape, color, and
+          position; overlap and interact; and do not line up on a tidy grid. This view
+          also does not apply the cortical magnification or hemifield mapping shown in the
+          cortex panel &mdash; it keeps the camera layout so the scene stays recognizable.
         </p>
       </LearnMore>
     </div>
