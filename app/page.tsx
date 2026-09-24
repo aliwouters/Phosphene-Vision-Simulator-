@@ -56,19 +56,6 @@ export default function Page() {
           <h1 className="text-xl font-mono font-semibold tracking-tight text-foreground lg:text-2xl">
             Phosphene Vision Simulator
           </h1>
-          <p className="max-w-3xl text-pretty text-xs leading-relaxed text-muted-foreground">
-            An educational simulation of how a camera-driven visual prosthesis could map a
-            scene onto primary visual cortex. It is <span className="text-foreground">not</span>{" "}
-            a validated prediction of artificial vision and{" "}
-            <span className="text-foreground">not</span> a tool for choosing safe
-            stimulation parameters. Panels are labeled{" "}
-            <span className="font-mono text-[10px] uppercase tracking-wider text-primary">approximation</span>{" "}
-            (math),{" "}
-            <span className="font-mono text-[10px] uppercase tracking-wider text-primary">schematic</span>{" "}
-            (conceptual), or{" "}
-            <span className="font-mono text-[10px] uppercase tracking-wider text-primary">illustrative</span>{" "}
-            (for legibility). See the README for equations, assumptions, and references.
-          </p>
         </div>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1.5">
@@ -133,6 +120,22 @@ export default function Page() {
         <PhospheneGrid matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
         <CalcarineViewer matrix={matrix} gridRows={gridRows} gridCols={gridCols} />
       </div>
+
+      <footer className="mt-8 border-t border-border pt-4">
+        <p className="max-w-3xl text-pretty text-xs leading-relaxed text-muted-foreground">
+          An educational simulation of how a camera-driven visual prosthesis could map a
+          scene onto primary visual cortex. It is <span className="text-foreground">not</span>{" "}
+          a validated prediction of artificial vision and{" "}
+          <span className="text-foreground">not</span> a tool for choosing safe
+          stimulation parameters. Panels are labeled{" "}
+          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">approximation</span>{" "}
+          (math),{" "}
+          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">schematic</span>{" "}
+          (conceptual), or{" "}
+          <span className="font-mono text-[10px] uppercase tracking-wider text-primary">illustrative</span>{" "}
+          (for legibility). See the README for equations, assumptions, and references.
+        </p>
+      </footer>
     </main>
   )
 }
